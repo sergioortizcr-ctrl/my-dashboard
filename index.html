@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f5f5f5;
+      min-height: 100vh;
+    }
+
+    /* ── AUTH ── */
+    #auth-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    .auth-box {
+      background: #fff;
+      border-radius: 16px;
+      padding: 36px 28px;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    }
+
+    .auth-box h1 { font-size: 28px; color: #1a1a2e; text-align: center; margin-bottom: 6px; }
+    .auth-box p  { color: #666; text-align: center; margin-bottom: 28px; font-size: 15px; }
+
+    input {
+      width: 100%; padding: 13px 14px; border: 1.5px solid #ddd;
+      border-radius: 10px; font-size: 15px; margin-bottom: 12px;
+      outline: none; transition: border-color .2s;
+    }
+    input:focus { border-color: #4f46e5; }
+
+    .btn {
+      width: 100%; padding: 14px; background: #4f46e5; color: #fff;
+      border: none; border-radius: 10px; font-size: 16px; font-weight: 600;
+      cursor: pointer; transition: background .2s;
+    }
+    .btn:hover { background: #4338ca; }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .toggle-link {
+      text-align: center; margin-top: 18px; font-size: 14px; color: #666;
+    }
+    .toggle-link a { color: #4f46e5; cursor: pointer; text-decoration: none; font-weight: 500; }
+
+    .error-msg { color: #ef4444; font-size: 13px; margin-bottom: 10px; text-align: center; }
+
+    /* ── DASHBOARD ── */
+    #dashboard-screen { display: none; }
+
+    header {
+      background: #4f46e5; color: #fff;
+      padding: 16px 20px;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 10;
+    }
+    header h2 { font-size: 20px; }
+    #signout-btn {
+      background: rgba(255,255,255,0.15); border: none; color: #fff;
+      padding: 7px 14px; border-radius: 8px; cursor: pointer; font-size: 14px;
+    }
+    #signout-btn:hover { background: rgba(255,255,255,0.25); }
+
+    .container { max-width: 640px; margin: 0 auto; padding: 20px 16px 100px; }
+
+    /* Filters */
+    .filters {
+      display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap;
+    }
+    .filter-btn {
+      padding: 6px 14px; border-radius: 20px; border: 1.5px solid #ddd;
+      background: #fff; cursor: pointer; font-size: 13px; font-weight: 500;
+      transition: all .15s;
+    }
+    .filter-btn.active { background: #4f46e5; color: #fff; border-color: #4f46e5; }
+
+    /* Cards */
+    .card {
+      background: #fff; border-radius: 14px; padding: 16px;
+      margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .card-header { display: flex; justify-content: space-between; align-items: flex-start; }
+    .card-title { font-size: 16px; font-weight: 600; color: #1a1a2e; flex: 1; }
+    .card-desc { color: #666; font-size: 14px; margin-top: 5px; }
+    .card-due  { color: #999; font-size: 12px; margin-top: 4px; }
+    .card-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; }
+
+    .status-badge {
+      padding: 4px 12px; border-radius: 20px; color: #fff;
+      font-size: 12px; font-weight: 600; cursor: pointer; border: none;
+      transition: opacity .15s;
+    }
+    .status-badge:hover { opacity: 0.85; }
+
+    .delete-btn {
+      background: none; border: none; color: #ef4444;
+      font-size: 18px; cursor: pointer; padding: 2px 6px;
+      line-height: 1;
+    }
+
+    .empty { text-align: center; color: #999; margin-top: 60px; font-size: 16px; }
+
+    /* FAB */
+    #add-btn {
+      position: fixed; bottom: 28px; right: 24px;
+      width: 58px; height: 58px; border-radius: 50%;
+      background: #4f46e5; color: #fff; font-size: 30px;
+      border: none; cursor: pointer; box-shadow: 0 6px 20px rgba(79,70,229,0.4);
+      display: flex; align-items: center; justify-content: center;
+      line-height: 1;
+    }
+
+    /* Modal */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.45); z-index: 100;
+      align-items: flex-end; justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+
+    .modal {
+      background: #fff; border-radius: 20px 20px 0 0;
+      padding: 28px 24px 40px; width: 100%; max-width: 640px;
+    }
+    .modal h3 { font-size: 20px; font-weight: 700; color: #1a1a2e; margin-bottom: 18px; }
+
+    .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 6px; }
+    .btn-cancel {
+      padding: 11px 18px; border-radius: 10px; border: 1.5px solid #ddd;
+      background: #fff; cursor: pointer; font-size: 14px;
+    }
+    .btn-save {
+      padding: 11px 24px; border-radius: 10px; background: #4f46e5;
+      color: #fff; border: none; cursor: pointer; font-size: 14px; font-weight: 600;
+    }
+    .btn-save:hover { background: #4338ca; }
+
+    textarea {
+      width: 100%; padding: 13px 14px; border: 1.5px solid #ddd;
+      border-radius: 10px; font-size: 15px; margin-bottom: 12px;
+      outline: none; resize: vertical; min-height: 80px;
+      font-family: inherit;
+    }
+    textarea:focus { border-color: #4f46e5; }
+
+    @media (min-width: 640px) {
+      .modal-overlay { align-items: center; }
+      .modal { border-radius: 20px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- AUTH -->
+<div id="auth-screen">
+  <div class="auth-box">
+    <h1>My Dashboard</h1>
+    <p id="auth-subtitle">Sign in to continue</p>
+    <div id="auth-error" class="error-msg" style="display:none"></div>
+    <input id="email" type="email" placeholder="Email" autocomplete="email" />
+    <input id="password" type="password" placeholder="Password" autocomplete="current-password" />
+    <button class="btn" id="auth-btn" onclick="handleAuth()">Sign In</button>
+    <div class="toggle-link">
+      <span id="toggle-text">Don't have an account?</span>
+      <a onclick="toggleMode()"> <span id="toggle-action">Sign up</span></a>
+    </div>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard-screen">
+  <header>
+    <h2>My Pendings</h2>
+    <button id="signout-btn" onclick="signOut()">Sign out</button>
+  </header>
+
+  <div class="container">
+    <div class="filters">
+      <button class="filter-btn active" onclick="setFilter('all', this)">All</button>
+      <button class="filter-btn" onclick="setFilter('pending', this)">Pending</button>
+      <button class="filter-btn" onclick="setFilter('in_progress', this)">In Progress</button>
+      <button class="filter-btn" onclick="setFilter('done', this)">Done</button>
+    </div>
+    <div id="items-list"></div>
+  </div>
+
+  <button id="add-btn" onclick="openModal()">＋</button>
+</div>
+
+<!-- ADD MODAL -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h3>New Pending</h3>
+    <input id="new-title" type="text" placeholder="Title *" />
+    <textarea id="new-desc" placeholder="Description (optional)"></textarea>
+    <input id="new-due" type="date" />
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-save" onclick="addItem()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const SUPABASE_URL = 'https://vzkljtrozljqbizgotle.supabase.co';
+  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ6a2xqdHJvemxqcWJpemdvdGxlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDIzMjMsImV4cCI6MjA5NjY3ODMyM30.AYaXB_81Zpg15PCrpZsO0SCPeK955Rp-f5QMmnuwI4c';
+  const { createClient } = supabase;
+  const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  let isSignUp = false;
+  let currentFilter = 'all';
+
+  const STATUS_COLORS = { pending: '#f59e0b', in_progress: '#3b82f6', done: '#10b981' };
+  const STATUS_LABELS = { pending: 'Pending', in_progress: 'In Progress', done: 'Done' };
+  const STATUS_NEXT   = { pending: 'in_progress', in_progress: 'done', done: 'pending' };
+
+  // ── AUTH ──
+  db.auth.onAuthStateChange((event, session) => {
+    if (session) showDashboard();
+    else showAuth();
+  });
+
+  function showAuth() {
+    document.getElementById('auth-screen').style.display = 'flex';
+    document.getElementById('dashboard-screen').style.display = 'none';
+  }
+
+  function showDashboard() {
+    document.getElementById('auth-screen').style.display = 'none';
+    document.getElementById('dashboard-screen').style.display = 'block';
+    fetchItems();
+  }
+
+  function toggleMode() {
+    isSignUp = !isSignUp;
+    document.getElementById('auth-subtitle').textContent = isSignUp ? 'Create an account' : 'Sign in to continue';
+    document.getElementById('auth-btn').textContent = isSignUp ? 'Sign Up' : 'Sign In';
+    document.getElementById('toggle-text').textContent = isSignUp ? 'Already have an account?' : "Don't have an account?";
+    document.getElementById('toggle-action').textContent = isSignUp ? 'Sign in' : 'Sign up';
+    document.getElementById('auth-error').style.display = 'none';
+  }
+
+  async function handleAuth() {
+    const email    = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const btn      = document.getElementById('auth-btn');
+    const errEl    = document.getElementById('auth-error');
+
+    if (!email || !password) { showError('Please fill in all fields.'); return; }
+
+    btn.disabled = true;
+    btn.textContent = 'Please wait…';
+
+    const { error } = isSignUp
+      ? await db.auth.signUp({ email, password })
+      : await db.auth.signInWithPassword({ email, password });
+
+    btn.disabled = false;
+    btn.textContent = isSignUp ? 'Sign Up' : 'Sign In';
+
+    if (error) {
+      showError(error.message);
+    } else if (isSignUp) {
+      showError('✅ Check your email to confirm your account, then sign in.');
+    }
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('auth-error');
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+
+  async function signOut() {
+    await db.auth.signOut();
+  }
+
+  // ── ITEMS ──
+  async function fetchItems() {
+    const list = document.getElementById('items-list');
+    list.innerHTML = '<p style="color:#999;text-align:center;margin-top:40px">Loading…</p>';
+
+    let query = db.from('pendings').select('*').order('created_at', { ascending: false });
+    if (currentFilter !== 'all') query = query.eq('status', currentFilter);
+
+    const { data, error } = await query;
+    if (error) { list.innerHTML = `<p class="empty">Error: ${error.message}</p>`; return; }
+
+    if (!data.length) {
+      list.innerHTML = '<p class="empty">No pendings yet.<br>Tap + to add one!</p>';
+      return;
+    }
+
+    list.innerHTML = data.map(item => `
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">${escHtml(item.title)}</span>
+          <button class="delete-btn" onclick="deleteItem('${item.id}')" title="Delete">✕</button>
+        </div>
+        ${item.description ? `<div class="card-desc">${escHtml(item.description)}</div>` : ''}
+        ${item.due_date    ? `<div class="card-due">Due: ${item.due_date}</div>` : ''}
+        <div class="card-footer">
+          <button class="status-badge"
+            style="background:${STATUS_COLORS[item.status]}"
+            onclick="cycleStatus('${item.id}','${item.status}')">
+            ${STATUS_LABELS[item.status]} →
+          </button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  async function addItem() {
+    const title = document.getElementById('new-title').value.trim();
+    const desc  = document.getElementById('new-desc').value.trim();
+    const due   = document.getElementById('new-due').value;
+
+    if (!title) { alert('Title is required.'); return; }
+
+    const { data: { user } } = await db.auth.getUser();
+    const { error } = await db.from('pendings').insert({
+      user_id: user.id, title,
+      description: desc || null,
+      due_date: due || null,
+    });
+
+    if (error) { alert(error.message); return; }
+
+    document.getElementById('new-title').value = '';
+    document.getElementById('new-desc').value  = '';
+    document.getElementById('new-due').value   = '';
+    closeModal();
+    fetchItems();
+  }
+
+  async function cycleStatus(id, current) {
+    await db.from('pendings').update({ status: STATUS_NEXT[current] }).eq('id', id);
+    fetchItems();
+  }
+
+  async function deleteItem(id) {
+    if (!confirm('Delete this item?')) return;
+    await db.from('pendings').delete().eq('id', id);
+    fetchItems();
+  }
+
+  function setFilter(filter, btn) {
+    currentFilter = filter;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    fetchItems();
+  }
+
+  function openModal()  { document.getElementById('modal').classList.add('open'); }
+  function closeModal() { document.getElementById('modal').classList.remove('open'); }
+
+  function escHtml(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // Close modal on overlay click
+  document.getElementById('modal').addEventListener('click', e => {
+    if (e.target === document.getElementById('modal')) closeModal();
+  });
+
+  // Submit on Enter in title field
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('password').addEventListener('keydown', e => {
+      if (e.key === 'Enter') handleAuth();
+    });
+  });
+</script>
+</body>
+</html>
