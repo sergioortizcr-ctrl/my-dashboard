@@ -4,6 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Sortiz ToDo — Task Manager</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#4f46e5" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -183,10 +190,10 @@
   </header>
 
   <nav>
-    <button class="nav-tab active" onclick="switchView('dashboard', this)">📊 Dashboard</button>
-    <button class="nav-tab" onclick="switchView('list', this)">📋 Tasks</button>
-    <button class="nav-tab" onclick="switchView('kanban', this)">🗂️ Kanban</button>
-    <button class="nav-tab" onclick="switchView('calendar', this)">📅 Calendar</button>
+    <button class="nav-tab active" data-view="dashboard" onclick="switchView('dashboard', this)">📊 Dashboard</button>
+    <button class="nav-tab" data-view="list" onclick="switchView('list', this)">📋 Tasks</button>
+    <button class="nav-tab" data-view="kanban" onclick="switchView('kanban', this)">🗂️ Kanban</button>
+    <button class="nav-tab" data-view="calendar" onclick="switchView('calendar', this)">📅 Calendar</button>
   </nav>
 
   <div class="container">
@@ -379,13 +386,32 @@
     });
   }
 
-  // ============ VIEWS ============
-  function switchView(name, btn) {
+  // ============ VIEWS & BACK BUTTON (History API) ============
+  let currentView = 'dashboard';
+
+  function switchView(name, btn, fromPop) {
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.getElementById('view-'+name).classList.add('active');
     document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
+    (btn || document.querySelector(`.nav-tab[data-view="${name}"]`)).classList.add('active');
+    const prev = currentView;
+    currentView = name;
+    if (fromPop) return;
+    // Maintain one history level while away from the dashboard,
+    // so the phone's back button returns there instead of leaving the app.
+    if (name !== 'dashboard') {
+      if (history.state?.level === 'view') history.replaceState({ level: 'view' }, '');
+      else history.pushState({ level: 'view' }, '');
+    } else if (prev !== 'dashboard' && history.state?.level === 'view') {
+      history.back();
+    }
   }
+
+  window.addEventListener('popstate', () => {
+    const modalOpen = document.getElementById('modal').classList.contains('open');
+    if (modalOpen) { closeModalInternal(); return; }
+    if (currentView !== 'dashboard') switchView('dashboard', null, true);
+  });
 
   // ----- LIST -----
   function renderList() {
@@ -527,8 +553,13 @@
     document.getElementById('comments-section').style.display = t ? 'block' : 'none';
     if (t) loadComments(t.id);
     document.getElementById('modal').classList.add('open');
+    history.pushState({ level: 'modal' }, '');
   }
-  function closeModal() { document.getElementById('modal').classList.remove('open'); editingId = null; }
+  function closeModalInternal() { document.getElementById('modal').classList.remove('open'); editingId = null; }
+  function closeModal() {
+    if (history.state?.level === 'modal') history.back(); // popstate closes it
+    else closeModalInternal();
+  }
 
   async function saveTask() {
     const title = document.getElementById('t-title').value.trim();
@@ -579,6 +610,9 @@
     document.getElementById('c-body').value = '';
     loadComments(editingId);
   }
+
+  // PWA service worker
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 
   // misc
   document.getElementById('modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
