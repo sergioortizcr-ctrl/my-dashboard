@@ -1,11 +1,11 @@
 {
-  "name": "Sortiz ToDo",
-  "short_name": "Sortiz ToDo",
-  "description": "Personal task dashboard",
+  "name": "ToDo-list Operations EP",
+  "short_name": "ToDo Ops EP",
+  "description": "ElectroPlast Operations task management",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#f4f5f7",
-  "theme_color": "#4f46e5",
+  "theme_color": "#2563eb",
   "icons": [
     {
       "src": "icon.svg",

@@ -1,4 +1,4 @@
-const CACHE = 'sortiz-todo-v1';
+const CACHE = 'ep-ops-v3';
 const SHELL = ['./', './index.html', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', (e) => {
