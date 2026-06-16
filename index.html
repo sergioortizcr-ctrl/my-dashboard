@@ -91,9 +91,38 @@
     .card-due.overdue { color: #dc2626; font-weight: 600; }
     .empty { text-align: center; color: var(--muted); margin-top: 50px; font-size: 15px; }
 
+    /* inline status dropdown on a task card */
+    .status-select {
+      font-size: 11px; font-weight: 600; padding: 4px 22px 4px 10px; border-radius: 12px;
+      color: #fff; border: none; cursor: pointer; -webkit-appearance: none; appearance: none; margin: 0; width: auto;
+      background-repeat: no-repeat; background-position: right 6px center;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath d='M1 3l4 4 4-4' stroke='white' stroke-width='1.6' fill='none'/%3E%3C/svg%3E");
+    }
+    .status-select option { color: #1a1a2e; background: #fff; }
+
+    /* multi-select filter dropdown */
+    .ms { position: relative; flex: 1; min-width: 125px; }
+    .ms-btn { width: 100%; text-align: left; background: #fff; border: 1.5px solid #ddd; border-radius: 10px; padding: 9px 11px; font-size: 13.5px; cursor: pointer; color: var(--text); display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+    .ms-btn.has-sel { border-color: var(--primary); color: var(--primary); font-weight: 600; }
+    .ms-panel { display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; box-shadow: 0 6px 20px rgba(0,0,0,.12); z-index: 30; max-height: 250px; overflow-y: auto; padding: 6px; }
+    .ms.open .ms-panel { display: block; }
+    .ms-panel label { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: 7px; font-size: 13.5px; cursor: pointer; margin: 0; }
+    .ms-panel label:hover { background: #f3f4f6; }
+    .ms-panel input { width: auto; margin: 0; }
+
+    /* pie charts */
+    .pie-wrap { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+    .pie-svg { width: 150px; height: 150px; flex-shrink: 0; }
+    .pie-total { font-size: 26px; font-weight: 700; fill: var(--text); }
+    .legend { display: flex; flex-direction: column; gap: 6px; font-size: 13px; flex: 1; min-width: 150px; }
+    .legend-row { display: flex; align-items: center; gap: 7px; }
+    .legend-dot { width: 11px; height: 11px; border-radius: 3px; flex-shrink: 0; }
+    .legend-pct { color: var(--muted); margin-left: auto; }
+
     /* ---------- KANBAN ---------- */
-    .kanban { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 12px; align-items: flex-start; }
-    .kanban-col { background: #ebecf0; border-radius: 12px; min-width: 230px; width: 230px; flex-shrink: 0; padding: 10px; }
+    .kanban { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; padding-bottom: 12px; align-items: start; }
+    .kanban-col { background: #ebecf0; border-radius: 12px; min-width: 0; padding: 10px; }
+    .kanban-card div { overflow-wrap: anywhere; }
     .kanban-col h4 { font-size: 13px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
     .kanban-col h4 .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 6px; }
     .kanban-col .count { color: var(--muted); font-weight: 500; }
@@ -259,11 +288,11 @@
     <div class="view" id="view-list">
       <div class="filter-bar">
         <input id="f-search" type="text" placeholder="🔍 Search…" oninput="renderList()" />
-        <select id="f-status" onchange="renderList()"><option value="">All statuses</option></select>
-        <select id="f-priority" onchange="renderList()"><option value="">All priorities</option></select>
-        <select id="f-dept" onchange="renderList()"><option value="">All departments</option></select>
-        <select id="f-project" onchange="renderList()"><option value="">All projects</option></select>
-        <select id="f-assignee" onchange="renderList()"><option value="">Everyone</option></select>
+        <div class="ms" id="ms-status"></div>
+        <div class="ms" id="ms-priority"></div>
+        <div class="ms" id="ms-dept"></div>
+        <div class="ms" id="ms-project"></div>
+        <div class="ms" id="ms-assignee"></div>
       </div>
       <div id="items-list"></div>
     </div>
@@ -294,6 +323,7 @@
           <thead><tr><th>Username</th><th>Name</th><th>Role</th><th></th></tr></thead>
           <tbody id="users-tbody"></tbody>
         </table>
+        <p class="auth-note" style="text-align:left">🔒 For security, passwords are stored encrypted and cannot be viewed by anyone — not even an admin. If a user forgets theirs, use <b>Reset password</b> to set a new temporary one; the app forces them to choose their own on next login.</p>
         <h4 style="margin-top:18px">➕ Create user</h4>
         <div class="form-row">
           <div><label class="field-label">Username</label><input id="nu-username" type="text" placeholder="e.g. acastro" autocomplete="off" /></div>
@@ -398,6 +428,19 @@
   let tasks = [], profiles = [], catalogs = { departments: [], clients: [], projects: [] };
   let me = null, currentUser = null, editingId = null, calDate = new Date(), currentView = 'dashboard';
 
+  // multi-select filter state (empty set = "all")
+  const filterState = { status:new Set(), priority:new Set(), dept:new Set(), project:new Set(), assignee:new Set() };
+  const MS_DEFS = {
+    status:   { container:'ms-status',   def:'All statuses' },
+    priority: { container:'ms-priority', def:'All priorities' },
+    dept:     { container:'ms-dept',     def:'All departments' },
+    project:  { container:'ms-project',  def:'All projects' },
+    assignee: { container:'ms-assignee', def:'Everyone' },
+  };
+  const PALETTE = ['#2563eb','#16a34a','#f59e0b','#8b5cf6','#ef4444','#06b6d4','#ec4899','#84cc16','#f97316','#6366f1','#14b8a6','#a855f7'];
+  const STATUS_HEX = { pending:'#f59e0b', in_progress:'#3b82f6', review:'#8b5cf6', blocked:'#ef4444', completed:'#10b981', cancelled:'#9ca3af' };
+  const PRIORITY_HEX = { critical:'#dc2626', high:'#f59e0b', medium:'#3b82f6', low:'#9ca3af' };
+
   // logo
   const logoTpl = document.getElementById('logo-svg');
   document.getElementById('auth-logo').appendChild(logoTpl.content.cloneNode(true));
@@ -492,14 +535,55 @@
   }
 
   function refreshFilters() {
-    fillSelect(document.getElementById('f-status'), STATUSES, S_LABEL, true);
-    fillSelect(document.getElementById('f-priority'), PRIORITIES, P_LABEL, true);
-    fillSelect(document.getElementById('f-dept'), catalogs.departments.map(x => x.name), null, true);
-    fillSelect(document.getElementById('f-project'), catalogs.projects.map(x => x.name), null, true);
+    ['status','priority','dept','project','assignee'].forEach(buildMulti);
     const peopleOpts = profiles.map(p => `<option value="${p.id}">${esc(p.full_name || p.username)}</option>`).join('');
-    document.getElementById('f-assignee').innerHTML = '<option value="">Everyone</option>' + peopleOpts;
     document.getElementById('k-assignee').innerHTML = '<option value="">Everyone</option>' + peopleOpts;
   }
+
+  // ----- MULTI-SELECT FILTERS -----
+  function msOptions(key) {
+    if (key === 'status')   return STATUSES.map(s => ({ value: s, label: S_LABEL[s] }));
+    if (key === 'priority') return PRIORITIES.map(p => ({ value: p, label: P_LABEL[p] }));
+    if (key === 'dept')     return catalogs.departments.map(d => ({ value: d.name, label: d.name }));
+    if (key === 'project')  return catalogs.projects.map(p => ({ value: p.name, label: p.name }));
+    if (key === 'assignee') return profiles.map(p => ({ value: p.id, label: p.full_name || p.username }));
+    return [];
+  }
+  function msLabel(key) {
+    const sel = filterState[key], opts = msOptions(key);
+    if (sel.size === 0) return MS_DEFS[key].def;
+    if (sel.size === 1) { const o = opts.find(x => x.value === [...sel][0]); return o ? o.label : '1 selected'; }
+    return sel.size + ' selected';
+  }
+  function buildMulti(key) {
+    const el = document.getElementById(MS_DEFS[key].container);
+    const opts = msOptions(key), sel = filterState[key];
+    [...sel].forEach(v => { if (!opts.some(o => o.value === v)) sel.delete(v); }); // drop stale picks
+    el.innerHTML = `
+      <button type="button" class="ms-btn ${sel.size ? 'has-sel' : ''}" onclick="toggleMs('${key}')">
+        <span>${esc(msLabel(key))}</span><span>▾</span>
+      </button>
+      <div class="ms-panel">
+        ${opts.map(o => `<label><input type="checkbox" value="${esc(o.value)}" ${sel.has(o.value) ? 'checked' : ''} onchange="msToggle('${key}','${esc(o.value)}',this.checked)"> ${esc(o.label)}</label>`).join('')
+          || '<div style="padding:8px;color:var(--muted);font-size:13px">No options yet</div>'}
+      </div>`;
+  }
+  function toggleMs(key) {
+    const el = document.getElementById(MS_DEFS[key].container);
+    const wasOpen = el.classList.contains('open');
+    document.querySelectorAll('.ms.open').forEach(m => m.classList.remove('open'));
+    if (!wasOpen) el.classList.add('open');
+  }
+  function msToggle(key, value, checked) {
+    if (checked) filterState[key].add(value); else filterState[key].delete(value);
+    const btn = document.getElementById(MS_DEFS[key].container).querySelector('.ms-btn');
+    btn.classList.toggle('has-sel', filterState[key].size > 0);
+    btn.querySelector('span').textContent = msLabel(key);
+    renderList();
+  }
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.ms')) document.querySelectorAll('.ms.open').forEach(m => m.classList.remove('open'));
+  });
 
   // ============ VIEWS & BACK BUTTON ============
   function switchView(name, btn, fromPop) {
@@ -525,17 +609,14 @@
   // ----- LIST -----
   function renderList() {
     const q = document.getElementById('f-search').value.toLowerCase();
-    const fs = document.getElementById('f-status').value;
-    const fp = document.getElementById('f-priority').value;
-    const fd = document.getElementById('f-dept').value;
-    const fpr = document.getElementById('f-project').value;
-    const fa = document.getElementById('f-assignee').value;
-
+    const S = filterState;
     const filtered = tasks.filter(t =>
       (!q || (t.title + ' ' + (t.description||'') + ' ' + (t.tags||[]).join(' ')).toLowerCase().includes(q)) &&
-      (!fs || t.status === fs) && (!fp || t.priority === fp) &&
-      (!fd || t.department === fd) && (!fpr || t.project === fpr) &&
-      (!fa || t.assignee_id === fa)
+      (S.status.size === 0   || S.status.has(t.status)) &&
+      (S.priority.size === 0 || S.priority.has(t.priority)) &&
+      (S.dept.size === 0     || S.dept.has(t.department)) &&
+      (S.project.size === 0  || S.project.has(t.project)) &&
+      (S.assignee.size === 0 || S.assignee.has(t.assignee_id))
     );
 
     const list = document.getElementById('items-list');
@@ -545,7 +626,9 @@
       <div class="card" style="border-left-color:var(--${t.priority})" onclick="openModal('${t.id}')">
         <div class="card-top">
           <span class="card-title ${t.status==='completed'?'done':''}">${esc(t.title)}</span>
-          <span class="badge" style="background:var(--${t.status})">${S_LABEL[t.status]}</span>
+          <select class="status-select" style="background:var(--${t.status})" onclick="event.stopPropagation()" onchange="inlineStatusChange('${t.id}', this.value)">
+            ${STATUSES.map(s => `<option value="${s}" ${s===t.status?'selected':''}>${S_LABEL[s]}</option>`).join('')}
+          </select>
         </div>
         <div class="badges">
           <span class="badge" style="background:var(--${t.priority})">${P_LABEL[t.priority]}</span>
@@ -557,6 +640,15 @@
         </div>
         ${t.due_date ? `<div class="card-due ${isOverdue(t)?'overdue':''}">📅 ${t.due_date}${isOverdue(t)?' — OVERDUE':''}</div>` : ''}
       </div>`).join('');
+  }
+
+  async function inlineStatusChange(id, status) {
+    const t = tasks.find(x => x.id === id);
+    if (!t) return;
+    t.status = status;
+    const { error } = await db.from('tasks').update({ status, updated_at: new Date().toISOString() }).eq('id', id);
+    if (error) { alert(error.message); await refreshData(); return; }
+    renderList(); renderDashboard(); renderKanban(); renderCalendar();
   }
 
   // ----- KANBAN -----
@@ -629,23 +721,28 @@
       <div class="stat-card"><div class="num" style="color:#10b981">${doneWeek.length}</div><div class="lbl">Completed (7 days)</div></div>
       <div class="stat-card"><div class="num">${tasks.length}</div><div class="lbl">Total tasks</div></div>`;
 
-    barChart('chart-user', profiles.map(p => [p.full_name || p.username, open.filter(t => t.assignee_id === p.id).length, 'var(--primary)'])
-      .concat(open.some(t => !t.assignee_id) ? [['(unassigned)', open.filter(t => !t.assignee_id).length, 'var(--low)']] : []));
-    barChart('chart-status', STATUSES.map(s => [S_LABEL[s], tasks.filter(t => t.status === s).length, `var(--${s})`]));
-    barChart('chart-priority', PRIORITIES.map(p => [P_LABEL[p], open.filter(t => t.priority === p).length, `var(--${p})`]));
+    pieChart('chart-user', profiles.map((p, i) => [p.full_name || p.username, open.filter(t => t.assignee_id === p.id).length, PALETTE[i % PALETTE.length]])
+      .concat(open.some(t => !t.assignee_id) ? [['(unassigned)', open.filter(t => !t.assignee_id).length, '#9ca3af']] : []));
+    pieChart('chart-status', STATUSES.map(s => [S_LABEL[s], tasks.filter(t => t.status === s).length, STATUS_HEX[s]]));
+    pieChart('chart-priority', PRIORITIES.map(p => [P_LABEL[p], open.filter(t => t.priority === p).length, PRIORITY_HEX[p]]));
     const depts = catalogs.departments.map(d => d.name);
-    barChart('chart-dept', depts.length
-      ? depts.map(d => [d, open.filter(t => t.department === d).length, 'var(--accent)'])
-      : [['(no departments yet)', open.length, 'var(--accent)']]);
+    pieChart('chart-dept', depts.map((d, i) => [d, open.filter(t => t.department === d).length, PALETTE[i % PALETTE.length]]));
   }
-  function barChart(elId, rows) {
-    const max = Math.max(1, ...rows.map(r => r[1]));
-    document.getElementById(elId).innerHTML = rows.map(([label, n, color]) => `
-      <div class="bar-row">
-        <div class="bar-label" title="${esc(label)}">${esc(label)}</div>
-        <div class="bar-track"><div class="bar-fill" style="width:${n/max*100}%;background:${color}"></div></div>
-        <div class="bar-num">${n}</div>
-      </div>`).join('');
+  function pieChart(elId, rows) {
+    const data = rows.filter(r => r[1] > 0);
+    const total = data.reduce((s, r) => s + r[1], 0);
+    const box = document.getElementById(elId);
+    if (!total) { box.innerHTML = '<p style="color:var(--muted);font-size:13px">No data yet.</p>'; return; }
+    const R = 60, C = 2 * Math.PI * R;
+    let off = 0;
+    const segs = data.map(([label, n, color]) => {
+      const len = n / total * C;
+      const seg = `<circle cx="80" cy="80" r="${R}" fill="none" stroke="${color}" stroke-width="34" stroke-dasharray="${len} ${C - len}" stroke-dashoffset="${-off}" transform="rotate(-90 80 80)"/>`;
+      off += len; return seg;
+    }).join('');
+    const legend = data.map(([label, n, color]) =>
+      `<div class="legend-row"><span class="legend-dot" style="background:${color}"></span><span>${esc(label)}</span><b style="margin-left:4px">${n}</b><span class="legend-pct">${Math.round(n/total*100)}%</span></div>`).join('');
+    box.innerHTML = `<div class="pie-wrap"><svg viewBox="0 0 160 160" class="pie-svg">${segs}<text x="80" y="80" text-anchor="middle" dominant-baseline="central" class="pie-total">${total}</text></svg><div class="legend">${legend}</div></div>`;
   }
 
   // ============ ADMIN ============
