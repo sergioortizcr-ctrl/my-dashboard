@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fingerprint Login Demo</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, system-ui, sans-serif;
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(160deg, #1e3a8a, #0f172a);
+      color: #fff;
+      padding: 20px;
+    }
+    .card {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 24px;
+      padding: 32px 24px;
+      width: 100%;
+      max-width: 360px;
+      text-align: center;
+      backdrop-filter: blur(10px);
+    }
+    .fingerprint {
+      font-size: 64px;
+      margin-bottom: 8px;
+    }
+    h1 { font-size: 22px; margin: 0 0 4px; }
+    p.subtitle { margin: 0 0 24px; opacity: 0.7; font-size: 14px; }
+    button {
+      width: 100%;
+      padding: 16px;
+      font-size: 16px;
+      font-weight: 600;
+      border: none;
+      border-radius: 14px;
+      cursor: pointer;
+      margin-bottom: 12px;
+      transition: transform 0.1s, opacity 0.2s;
+    }
+    button:active { transform: scale(0.97); }
+    .btn-primary { background: #38bdf8; color: #06283d; }
+    .btn-secondary {
+      background: transparent;
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+    #status {
+      margin-top: 16px;
+      font-size: 14px;
+      min-height: 20px;
+      padding: 10px;
+      border-radius: 10px;
+    }
+    .ok { background: rgba(34, 197, 94, 0.2); color: #86efac; }
+    .err { background: rgba(239, 68, 68, 0.2); color: #fca5a5; }
+    .info { opacity: 0.7; }
+    .hidden { display: none; }
+    #welcome { font-size: 40px; margin: 12px 0; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div id="login-view">
+      <div class="fingerprint">🔒</div>
+      <h1>Fingerprint Login</h1>
+      <p class="subtitle">A demo using your phone's fingerprint sensor</p>
+
+      <button id="registerBtn" class="btn-secondary">① Register this device</button>
+      <button id="loginBtn" class="btn-primary">② Login with Fingerprint</button>
+
+      <div id="status" class="info">Tap "Register" first, then "Login".</div>
+    </div>
+
+    <div id="success-view" class="hidden">
+      <div id="welcome">✅</div>
+      <h1>You're in!</h1>
+      <p class="subtitle">Fingerprint verified successfully.</p>
+      <button id="logoutBtn" class="btn-secondary">Log out</button>
+    </div>
+  </div>
+
+  <script>
+    const statusEl = document.getElementById('status');
+    const loginView = document.getElementById('login-view');
+    const successView = document.getElementById('success-view');
+
+    function setStatus(msg, type) {
+      statusEl.textContent = msg;
+      statusEl.className = type || 'info';
+    }
+
+    // Helpers to convert between text and the binary format WebAuthn needs
+    function strToBuffer(str) {
+      return Uint8Array.from(str, c => c.charCodeAt(0));
+    }
+    function bufferToBase64(buffer) {
+      return btoa(String.fromCharCode(...new Uint8Array(buffer)));
+    }
+
+    // ---- STEP 1: REGISTER (set up the fingerprint once) ----
+    document.getElementById('registerBtn').addEventListener('click', async () => {
+      if (!window.PublicKeyCredential) {
+        setStatus('This browser does not support fingerprint login.', 'err');
+        return;
+      }
+      try {
+        setStatus('Follow your phone’s prompt to scan your fingerprint…', 'info');
+        const credential = await navigator.credentials.create({
+          publicKey: {
+            challenge: strToBuffer('demo-registration-challenge'),
+            rp: { name: 'Fingerprint Demo' },
+            user: {
+              id: strToBuffer('demo-user-001'),
+              name: 'demo@user.com',
+              displayName: 'Demo User'
+            },
+            pubKeyCredParams: [
+              { type: 'public-key', alg: -7 },   // ES256
+              { type: 'public-key', alg: -257 }  // RS256
+            ],
+            authenticatorSelection: {
+              authenticatorAttachment: 'platform', // use the built-in fingerprint sensor
+              userVerification: 'required'
+            },
+            timeout: 60000
+          }
+        });
+        // Remember which credential belongs to this device
+        localStorage.setItem('credentialId', bufferToBase64(credential.rawId));
+        setStatus('✅ Registered! Now tap "Login with Fingerprint".', 'ok');
+      } catch (err) {
+        setStatus('Registration cancelled or failed: ' + err.message, 'err');
+      }
+    });
+
+    // ---- STEP 2: LOGIN (verify the fingerprint) ----
+    document.getElementById('loginBtn').addEventListener('click', async () => {
+      const savedId = localStorage.getItem('credentialId');
+      if (!savedId) {
+        setStatus('Please tap "Register this device" first.', 'err');
+        return;
+      }
+      try {
+        setStatus('Scan your fingerprint to log in…', 'info');
+        await navigator.credentials.get({
+          publicKey: {
+            challenge: strToBuffer('demo-login-challenge-' + Date.now()),
+            allowCredentials: [{
+              type: 'public-key',
+              id: Uint8Array.from(atob(savedId), c => c.charCodeAt(0))
+            }],
+            userVerification: 'required',
+            timeout: 60000
+          }
+        });
+        // Success! Show the unlocked view
+        loginView.classList.add('hidden');
+        successView.classList.remove('hidden');
+      } catch (err) {
+        setStatus('Login failed: ' + err.message, 'err');
+      }
+    });
+
+    // ---- Log out (back to start) ----
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+      successView.classList.add('hidden');
+      loginView.classList.remove('hidden');
+      setStatus('Logged out. Tap "Login" to come back.', 'info');
+    });
+  </script>
+</body>
+</html>
