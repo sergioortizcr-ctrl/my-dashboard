@@ -210,8 +210,58 @@
     .comment-form input { margin-bottom: 0; flex: 1; }
     .comment-form button { width: auto; padding: 0 18px; }
 
+    /* activity (system) messages in the thread */
+    .activity { text-align: center; color: var(--muted); font-size: 12px; margin: 8px 0; padding: 5px 8px; background: #f1f5f9; border-radius: 8px; }
+
+    /* dark-mode toggle button */
+    #theme-btn { background: #f3f4f6; border: none; border-radius: 8px; padding: 6px 10px; cursor: pointer; font-size: 14px; line-height: 1; }
+
+    /* kanban swipeable sections */
+    .kanban-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+    .ktab { padding: 8px 14px; border-radius: 9px; border: 1.5px solid #ddd; background: #fff; cursor: pointer; font-size: 13.5px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+    .ktab.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .kanban-pages { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+    .kanban-pages::-webkit-scrollbar { display: none; }
+    .kanban-page { min-width: 100%; scroll-snap-align: start; }
+    #modal { z-index: 110; }
+
+    /* calendar dots (mobile-friendly) */
+    .cal-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+    .cal-day { cursor: pointer; }
+    .cal-dots { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 3px; }
+    .cal-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .cal-count { font-size: 10px; color: var(--muted); font-weight: 600; }
+    .day-task { display: flex; align-items: center; gap: 8px; background: #f8f9fb; border-radius: 9px; padding: 10px 12px; margin-bottom: 8px; cursor: pointer; }
+    .day-task:hover { background: #eef1f6; }
+
+    /* ---------- DARK MODE ---------- */
+    [data-theme="dark"] { --bg:#0f172a; --card:#1e293b; --text:#e2e8f0; --muted:#94a3b8; }
+    [data-theme="dark"] header { background:#1e293b; border-color:#334155; }
+    [data-theme="dark"] .auth-box, [data-theme="dark"] .modal, [data-theme="dark"] .card,
+    [data-theme="dark"] .stat-card, [data-theme="dark"] .chart-box, [data-theme="dark"] .admin-box { background:#1e293b; }
+    [data-theme="dark"] input, [data-theme="dark"] select, [data-theme="dark"] textarea { background:#0f172a; color:#e2e8f0; border-color:#334155; }
+    [data-theme="dark"] input:disabled, [data-theme="dark"] select:disabled, [data-theme="dark"] textarea:disabled { background:#1e293b; color:#64748b; }
+    [data-theme="dark"] .kanban-col { background:#0f172a; }
+    [data-theme="dark"] .kanban-card { background:#1e293b; }
+    [data-theme="dark"] .cal-day { background:#1e293b; }
+    [data-theme="dark"] .nav-tab { color:#94a3b8; }
+    [data-theme="dark"] .user-chip, [data-theme="dark"] #signout-btn, [data-theme="dark"] #theme-btn { background:#334155; color:#e2e8f0; }
+    [data-theme="dark"] .badge.outline { background:#334155 !important; color:#cbd5e1; border-color:#475569; }
+    [data-theme="dark"] .badge.person { background:#1e3a5f !important; color:#93c5fd; border-color:#1e40af; }
+    [data-theme="dark"] .comment, [data-theme="dark"] .attach-item, [data-theme="dark"] .catalog-list li,
+    [data-theme="dark"] .activity, [data-theme="dark"] .day-task, [data-theme="dark"] .bar-track { background:#0f172a; }
+    [data-theme="dark"] .ms-btn, [data-theme="dark"] .ms-panel, [data-theme="dark"] .btn-cancel,
+    [data-theme="dark"] .cal-nav, [data-theme="dark"] .mini-btn, [data-theme="dark"] .ktab { background:#1e293b; color:#e2e8f0; border-color:#334155; }
+    [data-theme="dark"] .ms-panel label:hover, [data-theme="dark"] .day-task:hover { background:#334155; }
+    [data-theme="dark"] .ktab.active { background:var(--primary); color:#fff; }
+    [data-theme="dark"] .status-select option { background:#1e293b; color:#e2e8f0; }
+    [data-theme="dark"] .pie-total { fill:#e2e8f0; }
+    [data-theme="dark"] .admin-table th { color:#94a3b8; border-color:#334155; }
+    [data-theme="dark"] .admin-table td { border-color:#293548; }
+    [data-theme="dark"] nav, [data-theme="dark"] .kanban-col h4 { color:#e2e8f0; }
+
     @media (min-width: 640px) { .modal-overlay { align-items: center; padding: 20px; } .modal { border-radius: 20px; } }
-    @media (max-width: 560px) { .form-row { flex-direction: column; gap: 0; } }
+    @media (max-width: 560px) { .form-row { flex-direction: column; gap: 0; } .cal-day { min-height: 58px; } }
   </style>
 </head>
 <body>
@@ -263,6 +313,7 @@
     <span class="logo" id="header-logo"><h2><span class="brand-name"><span class="b1">ToDo-list Operations</span> <span class="b2">EP</span></span></h2></span>
     <div class="header-right">
       <span class="user-chip" id="user-chip"></span>
+      <button id="theme-btn" onclick="toggleTheme()" title="Toggle dark mode">🌙</button>
       <button id="signout-btn" onclick="db.auth.signOut()">Sign out</button>
     </div>
   </header>
@@ -303,7 +354,11 @@
       <div class="filter-bar">
         <select id="k-assignee" onchange="renderKanban()"><option value="">Everyone</option></select>
       </div>
-      <div class="kanban" id="kanban-board"></div>
+      <div class="kanban-tabs">
+        <button class="ktab active" data-page="0" onclick="kanbanPage(0)">Active</button>
+        <button class="ktab" data-page="1" onclick="kanbanPage(1)">Completed / Cancelled</button>
+      </div>
+      <div class="kanban-pages" id="kanban-pages"></div>
     </div>
 
     <!-- CALENDAR -->
@@ -413,6 +468,15 @@
         <button class="btn" onclick="addComment()">Send</button>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- ========== DAY MODAL (calendar) ========== -->
+<div class="modal-overlay" id="day-modal">
+  <div class="modal">
+    <h3 id="day-modal-title">Tasks</h3>
+    <div id="day-modal-list"></div>
+    <div class="modal-actions" style="margin-top:14px"><div class="right"><button class="btn-cancel" onclick="closeDay()">Close</button></div></div>
   </div>
 </div>
 
@@ -605,8 +669,22 @@
   }
   window.addEventListener('popstate', () => {
     if (document.getElementById('modal').classList.contains('open')) { closeModalInternal(); return; }
+    if (document.getElementById('day-modal').classList.contains('open')) { closeDayInternal(); return; }
     if (currentView !== 'dashboard') switchView('dashboard', null, true);
   });
+
+  // ----- DARK MODE -----
+  function applyTheme(t) {
+    document.documentElement.setAttribute('data-theme', t);
+    const btn = document.getElementById('theme-btn');
+    if (btn) btn.textContent = t === 'dark' ? '☀️' : '🌙';
+  }
+  function toggleTheme() {
+    const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    localStorage.setItem('theme', next);
+    applyTheme(next);
+  }
+  applyTheme(localStorage.getItem('theme') || 'light');
 
   // ----- LIST -----
   function renderList() {
@@ -646,21 +724,26 @@
 
   async function inlineStatusChange(id, status) {
     const t = tasks.find(x => x.id === id);
-    if (!t) return;
+    if (!t || t.status === status) return;
+    const oldStatus = t.status;
     t.status = status;
     const { error } = await db.from('tasks').update({ status, updated_at: new Date().toISOString() }).eq('id', id);
     if (error) { alert(error.message); await refreshData(); return; }
+    await logActivity(id, `🔄 Status: ${S_LABEL[oldStatus]} → ${S_LABEL[status]}`);
     renderList(); renderDashboard(); renderKanban(); renderCalendar();
   }
 
-  // ----- KANBAN -----
-  function renderKanban() {
-    const fa = document.getElementById('k-assignee').value;
-    const pool = fa ? tasks.filter(t => t.assignee_id === fa) : tasks;
-    const board = document.getElementById('kanban-board');
-    board.innerHTML = STATUSES.map(s => {
-      const col = pool.filter(t => t.status === s);
-      return `
+  async function logActivity(taskId, body) {
+    await db.from('task_comments').insert({ task_id: taskId, user_id: currentUser.id, body, kind: 'activity' });
+  }
+
+  // ----- KANBAN (two swipeable sections) -----
+  const KANBAN_GROUPS = [['pending','in_progress','review','blocked'], ['completed','cancelled']];
+  let kanbanCurrentPage = 0;
+
+  function kanbanColHtml(s, pool) {
+    const col = pool.filter(t => t.status === s);
+    return `
       <div class="kanban-col" data-status="${s}" ondragover="kanbanOver(event)" ondragleave="kanbanLeave(event)" ondrop="kanbanDrop(event)">
         <h4><span><span class="dot" style="background:var(--${s})"></span>${S_LABEL[s]}</span><span class="count">${col.length}</span></h4>
         ${col.map(t => `
@@ -673,7 +756,27 @@
             </div>
           </div>`).join('')}
       </div>`;
-    }).join('');
+  }
+  function renderKanban() {
+    const fa = document.getElementById('k-assignee').value;
+    const pool = fa ? tasks.filter(t => t.assignee_id === fa) : tasks;
+    const pagesEl = document.getElementById('kanban-pages');
+    pagesEl.innerHTML = KANBAN_GROUPS.map(statuses =>
+      `<div class="kanban-page"><div class="kanban">${statuses.map(s => kanbanColHtml(s, pool)).join('')}</div></div>`).join('');
+    pagesEl.scrollLeft = kanbanCurrentPage * pagesEl.clientWidth; // keep current page
+    pagesEl.onscroll = () => {
+      const p = Math.round(pagesEl.scrollLeft / pagesEl.clientWidth);
+      if (p !== kanbanCurrentPage) { kanbanCurrentPage = p; syncKanbanTabs(); }
+    };
+  }
+  function kanbanPage(i) {
+    kanbanCurrentPage = i;
+    const pagesEl = document.getElementById('kanban-pages');
+    pagesEl.scrollTo({ left: i * pagesEl.clientWidth, behavior: 'smooth' });
+    syncKanbanTabs();
+  }
+  function syncKanbanTabs() {
+    document.querySelectorAll('.ktab').forEach(b => b.classList.toggle('active', +b.dataset.page === kanbanCurrentPage));
   }
   function kanbanDrag(e, id) { e.dataTransfer.setData('text/plain', id); }
   function kanbanOver(e) { e.preventDefault(); e.currentTarget.classList.add('drag-over'); }
@@ -685,8 +788,10 @@
     const status = e.currentTarget.dataset.status;
     const t = tasks.find(x => x.id === id);
     if (!t || t.status === status) return;
+    const oldStatus = t.status;
     t.status = status; renderAll();
     await db.from('tasks').update({ status, updated_at: new Date().toISOString() }).eq('id', id);
+    await logActivity(id, `🔄 Status: ${S_LABEL[oldStatus]} → ${S_LABEL[status]}`);
   }
 
   // ----- CALENDAR -----
@@ -702,14 +807,35 @@
       const d = new Date(start); d.setDate(start.getDate() + i);
       const ds = d.toISOString().slice(0,10);
       const dayTasks = tasks.filter(t => t.due_date === ds && t.status !== 'cancelled');
+      const dots = dayTasks.slice(0,5).map(t => `<span class="cal-dot" style="background:var(--${t.priority})"></span>`).join('');
       html += `
-        <div class="cal-day ${d.getMonth() !== m ? 'other' : ''} ${ds === todayStr() ? 'today' : ''}">
+        <div class="cal-day ${d.getMonth() !== m ? 'other' : ''} ${ds === todayStr() ? 'today' : ''}" onclick="openDay('${ds}')">
           <div class="d">${d.getDate()}</div>
-          ${dayTasks.slice(0,3).map(t => `<div class="cal-task" style="background:var(--${t.priority})" onclick="openModal('${t.id}')">${esc(t.title)}</div>`).join('')}
-          ${dayTasks.length > 3 ? `<div style="font-size:10px;color:var(--muted)">+${dayTasks.length-3} more</div>` : ''}
+          ${dayTasks.length ? `<div class="cal-dots">${dots}</div><div class="cal-count">${dayTasks.length} task${dayTasks.length>1?'s':''}</div>` : ''}
         </div>`;
     }
     document.getElementById('cal-grid').innerHTML = html;
+  }
+
+  function openDay(ds) {
+    const dayTasks = tasks.filter(t => t.due_date === ds && t.status !== 'cancelled');
+    const nice = new Date(ds + 'T00:00:00').toLocaleDateString('en', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    document.getElementById('day-modal-title').textContent = nice;
+    document.getElementById('day-modal-list').innerHTML = dayTasks.length
+      ? dayTasks.map(t => `
+          <div class="day-task" onclick="openModal('${t.id}')">
+            <span class="cal-dot" style="background:var(--${t.priority})"></span>
+            <span style="flex:1">${esc(t.title)}</span>
+            <span class="badge" style="background:var(--${t.status})">${S_LABEL[t.status]}</span>
+          </div>`).join('')
+      : '<p style="color:var(--muted);font-size:14px;text-align:center;padding:20px 0">No tasks due this day.</p>';
+    document.getElementById('day-modal').classList.add('open');
+    history.pushState({ level: 'modal' }, '');
+  }
+  function closeDayInternal() { document.getElementById('day-modal').classList.remove('open'); }
+  function closeDay() {
+    if (history.state?.level === 'modal') history.back();
+    else closeDayInternal();
   }
 
   // ----- DASHBOARD -----
@@ -887,10 +1013,16 @@
       tags: document.getElementById('t-tags').value.split(',').map(s => s.trim()).filter(Boolean),
       updated_at: new Date().toISOString(),
     };
-    let error;
-    if (editingId) ({ error } = await db.from('tasks').update(payload).eq('id', editingId));
-    else ({ error } = await db.from('tasks').insert({ ...payload, user_id: currentUser.id }));
-    if (error) return alert(error.message);
+    if (editingId) {
+      const prev = tasks.find(x => x.id === editingId);
+      const { error } = await db.from('tasks').update(payload).eq('id', editingId);
+      if (error) return alert(error.message);
+      if (prev && prev.status !== payload.status) await logActivity(editingId, `🔄 Status: ${S_LABEL[prev.status]} → ${S_LABEL[payload.status]}`);
+    } else {
+      const { data, error } = await db.from('tasks').insert({ ...payload, user_id: currentUser.id }).select('id').single();
+      if (error) return alert(error.message);
+      await logActivity(data.id, '📌 Created this task');
+    }
     closeModal();
     await refreshData();
   }
@@ -952,7 +1084,9 @@
     const { data, error } = await db.from('task_comments').select('*').eq('task_id', taskId).order('created_at');
     if (error) { box.innerHTML = `<p style="color:#ef4444;font-size:13px">${esc(error.message)}</p>`; return; }
     box.innerHTML = data.length
-      ? data.map(c => `<div class="comment"><b style="font-size:12px;color:var(--primary)">${esc(personName(c.user_id))}</b><br>${esc(c.body)}<div class="c-date">${new Date(c.created_at).toLocaleString()}</div></div>`).join('')
+      ? data.map(c => c.kind === 'activity'
+          ? `<div class="activity">${esc(c.body)} — ${esc(personName(c.user_id))} · ${new Date(c.created_at).toLocaleString()}</div>`
+          : `<div class="comment"><b style="font-size:12px;color:var(--primary)">${esc(personName(c.user_id))}</b><br>${esc(c.body)}<div class="c-date">${new Date(c.created_at).toLocaleString()}</div></div>`).join('')
       : '<p style="color:var(--muted);font-size:13px">No comments yet.</p>';
   }
   async function addComment() {
@@ -969,6 +1103,7 @@
 
   // misc
   document.getElementById('modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
+  document.getElementById('day-modal').addEventListener('click', e => { if (e.target.id === 'day-modal') closeDay(); });
   document.getElementById('password').addEventListener('keydown', e => { if (e.key === 'Enter') handleAuth(); });
   document.getElementById('c-body').addEventListener('keydown', e => { if (e.key === 'Enter') addComment(); });
 </script>
