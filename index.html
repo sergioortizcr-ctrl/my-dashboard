@@ -1098,8 +1098,19 @@
     loadComments(editingId);
   }
 
-  // PWA service worker
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+  // PWA service worker + auto-update (so you never have to clear cache)
+  if ('serviceWorker' in navigator) {
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (refreshing) return;            // a newer version took over → reload once
+      refreshing = true;
+      window.location.reload();
+    });
+    navigator.serviceWorker.register('sw.js').then(reg => {
+      setInterval(() => reg.update(), 60000);                                  // check every minute
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update(); }); // and when reopened
+    });
+  }
 
   // misc
   document.getElementById('modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
