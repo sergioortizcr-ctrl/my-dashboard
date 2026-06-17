@@ -39,6 +39,7 @@
       font-size: 15px; margin-bottom: 12px; outline: none; font-family: inherit; background: #fff; color: var(--text);
     }
     input:focus, select:focus, textarea:focus { border-color: var(--primary); }
+    input:disabled, select:disabled, textarea:disabled { background: #f3f4f6; color: #9ca3af; cursor: not-allowed; }
     textarea { resize: vertical; min-height: 70px; }
     .btn { width: 100%; padding: 13px; background: var(--primary); color: #fff; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; }
     .btn:hover { background: var(--primary-dark); }
@@ -364,6 +365,7 @@
 <div class="modal-overlay" id="modal">
   <div class="modal">
     <h3 id="modal-title">New Task</h3>
+    <p id="restricted-note" style="display:none;background:#fef3c7;color:#92400e;font-size:12.5px;padding:9px 11px;border-radius:9px;margin-bottom:14px">🔒 This task was assigned to you. You can update its <b>status</b> and add <b>comments</b> / <b>attachments</b>. Other fields are managed by the person who created it.</p>
     <label class="field-label">Title *</label>
     <input id="t-title" type="text" placeholder="Task title" />
     <label class="field-label">Description</label>
@@ -848,13 +850,21 @@
     buildCatalogSelect(document.getElementById('t-client'), 'clients', t?.client || '', true);
     buildCatalogSelect(document.getElementById('t-project'), 'projects', t?.project || '', me?.role === 'admin');
     document.getElementById('t-tags').value = (t?.tags || []).join(', ');
-    document.getElementById('btn-delete').style.display = t ? 'block' : 'none';
+
+    // permissions: new task or admin/creator = full edit; assignee-only = status + comments + attachments
+    const full = !t || canEditFull(t);
+    ['t-title','t-desc','t-priority','t-due','t-assignee','t-dept','t-client','t-project','t-tags']
+      .forEach(id => document.getElementById(id).disabled = !full);
+    document.getElementById('restricted-note').style.display = full ? 'none' : 'block';
+    document.getElementById('btn-delete').style.display = (t && full) ? 'block' : 'none';
+
     document.getElementById('comments-section').style.display = t ? 'block' : 'none';
     document.getElementById('attach-section').style.display = t ? 'block' : 'none';
     if (t) { loadComments(t.id); loadAttachments(t.id); }
     document.getElementById('modal').classList.add('open');
     history.pushState({ level: 'modal' }, '');
   }
+  function canEditFull(t) { return me?.role === 'admin' || t?.user_id === currentUser?.id; }
   function closeModalInternal() { document.getElementById('modal').classList.remove('open'); editingId = null; }
   function closeModal() {
     if (history.state?.level === 'modal') history.back();
