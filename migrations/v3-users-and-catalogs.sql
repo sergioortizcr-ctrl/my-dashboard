@@ -54,7 +54,7 @@ grant execute on function email_for_username(text) to anon, authenticated;
 
 -- admin resets another user's password; forces them to change it on next login
 create or replace function admin_reset_password(target uuid, new_password text) returns void
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, extensions as $$
 begin
   if not is_admin() then raise exception 'Only admins can reset passwords'; end if;
   if length(new_password) < 6 then raise exception 'Password must be at least 6 characters'; end if;
