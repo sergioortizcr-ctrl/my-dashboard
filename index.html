@@ -109,9 +109,9 @@
     .ms-btn.has-sel { border-color: var(--primary); color: var(--primary); font-weight: 600; }
     .ms-panel { display: none; position: absolute; top: calc(100% + 4px); left: 0; min-width: 100%; width: max-content; max-width: 280px; background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; box-shadow: 0 6px 20px rgba(0,0,0,.12); z-index: 30; max-height: 260px; overflow-y: auto; overflow-x: hidden; padding: 6px; }
     .ms.open .ms-panel { display: block; }
-    .ms-panel label { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 7px; font-size: 13.5px; cursor: pointer; margin: 0; white-space: nowrap; }
+    .ms-panel label { display: flex; align-items: center; justify-content: flex-start; gap: 9px; padding: 8px 10px; border-radius: 7px; font-size: 13.5px; cursor: pointer; margin: 0; white-space: nowrap; text-align: left; }
     .ms-panel label:hover { background: #f3f4f6; }
-    .ms-panel input { width: 16px; height: 16px; margin: 0; flex-shrink: 0; }
+    .ms-panel input { width: 16px; height: 16px; min-width: 16px; margin: 0; padding: 0; border-radius: 4px; flex: 0 0 auto; }
 
     /* pie charts */
     .pie-wrap { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
