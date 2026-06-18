@@ -24,6 +24,8 @@
 
     .logo { display: inline-flex; align-items: center; gap: 9px; }
     .logo svg { width: 34px; height: 34px; flex-shrink: 0; }
+    .brand-img-auth { width: 190px; max-width: 72%; height: auto; display: block; margin: 0 auto 12px; }
+    .brand-img-header { height: 34px; width: auto; background: #fff; border-radius: 6px; padding: 2px; flex-shrink: 0; }
     .brand-name { font-weight: 700; }
     .brand-name .b1 { color: #2563eb; } .brand-name .b2 { color: #16a34a; }
 
@@ -282,7 +284,7 @@
 <!-- ========== AUTH ========== -->
 <div id="auth-screen">
   <div class="auth-box">
-    <div class="logo" id="auth-logo"></div>
+    <img src="logo_operaciones.png" alt="ElectroPlast Operations" class="brand-img-auth" />
     <h1><span class="brand-name"><span class="b1">ToDo-list Operations</span> <span class="b2">EP</span></span></h1>
     <p>Sign in with your username</p>
     <div id="auth-error" class="error-msg"></div>
@@ -310,7 +312,7 @@
 <!-- ========== APP ========== -->
 <div id="app">
   <header>
-    <span class="logo" id="header-logo"><h2><span class="brand-name"><span class="b1">ToDo-list Operations</span> <span class="b2">EP</span></span></h2></span>
+    <span class="logo" id="header-logo"><img src="logo_operaciones.png" alt="EP" class="brand-img-header" /><h2><span class="brand-name"><span class="b1">ToDo-list Operations</span> <span class="b2">EP</span></span></h2></span>
     <div class="header-right">
       <span class="user-chip" id="user-chip"></span>
       <button id="theme-btn" onclick="toggleTheme()" title="Toggle dark mode">🌙</button>
@@ -507,10 +509,6 @@
   const STATUS_HEX = { pending:'#f59e0b', in_progress:'#3b82f6', review:'#8b5cf6', blocked:'#ef4444', completed:'#10b981', cancelled:'#9ca3af' };
   const PRIORITY_HEX = { critical:'#dc2626', high:'#f59e0b', medium:'#3b82f6', low:'#9ca3af' };
 
-  // logo
-  const logoTpl = document.getElementById('logo-svg');
-  document.getElementById('auth-logo').appendChild(logoTpl.content.cloneNode(true));
-  document.getElementById('header-logo').prepend(logoTpl.content.cloneNode(true));
 
   // ============ AUTH ============
   db.auth.onAuthStateChange(async (event, session) => {

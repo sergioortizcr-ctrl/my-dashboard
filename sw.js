@@ -1,5 +1,5 @@
-const CACHE = 'ep-ops-v5';
-const SHELL = ['./', './index.html', './manifest.json', './icon.svg'];
+const CACHE = 'ep-ops-v6';
+const SHELL = ['./', './index.html', './manifest.json', './icon.svg', './logo_operaciones.png'];
 
 self.addEventListener('install', (e) => {
   self.skipWaiting();
