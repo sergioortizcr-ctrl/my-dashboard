@@ -1,4 +1,4 @@
-const CACHE = 'ep-ops-v6';
+const CACHE = 'ep-ops-v7';
 const SHELL = ['./', './index.html', './manifest.json', './icon.svg', './logo_operaciones.png'];
 
 self.addEventListener('install', (e) => {
