@@ -262,6 +262,24 @@
     [data-theme="dark"] .admin-table td { border-color:#293548; }
     [data-theme="dark"] nav, [data-theme="dark"] .kanban-col h4 { color:#e2e8f0; }
 
+    /* date-range filter */
+    .date-filter { display: flex; align-items: center; gap: 5px; flex: 1; min-width: 220px; background: #fff; border: 1.5px solid #ddd; border-radius: 10px; padding: 4px 8px; }
+    .date-filter input { border: none; margin: 0; padding: 5px; font-size: 12.5px; width: auto; flex: 1; min-width: 0; background: transparent; }
+    .date-filter input:focus { border: none; }
+    .date-filter .df-ico { color: var(--muted); font-size: 13px; }
+    [data-theme="dark"] .date-filter { background: #1e293b; border-color: #334155; }
+
+    /* progress bar on cards */
+    .progress-row { display: flex; align-items: center; gap: 8px; margin-top: 9px; }
+    .progress-wrap { flex: 1; height: 7px; background: #e5e7eb; border-radius: 5px; overflow: hidden; }
+    .progress-fill { height: 100%; border-radius: 5px; background: var(--accent); transition: width .3s; }
+    .progress-pct { font-size: 11px; color: var(--muted); font-weight: 600; min-width: 30px; text-align: right; }
+    [data-theme="dark"] .progress-wrap { background: #334155; }
+
+    /* range slider in the modal */
+    input[type="range"] { -webkit-appearance: auto; appearance: auto; padding: 0; border: none; background: transparent; height: 28px; margin-bottom: 6px; }
+    #t-progress:disabled { opacity: .55; }
+
     @media (min-width: 640px) { .modal-overlay { align-items: center; padding: 20px; } .modal { border-radius: 20px; } }
     @media (max-width: 560px) { .form-row { flex-direction: column; gap: 0; } .cal-day { min-height: 58px; } }
   </style>
@@ -347,6 +365,12 @@
         <div class="ms" id="ms-dept"></div>
         <div class="ms" id="ms-project"></div>
         <div class="ms" id="ms-assignee"></div>
+        <div class="date-filter">
+          <span class="df-ico">📅</span>
+          <input id="f-date-from" type="date" title="Due from" onchange="renderList()" />
+          <span class="df-ico">→</span>
+          <input id="f-date-to" type="date" title="Due to" onchange="renderList()" />
+        </div>
       </div>
       <div id="items-list"></div>
     </div>
@@ -355,6 +379,12 @@
     <div class="view" id="view-kanban">
       <div class="filter-bar">
         <select id="k-assignee" onchange="renderKanban()"><option value="">Everyone</option></select>
+        <div class="date-filter">
+          <span class="df-ico">📅</span>
+          <input id="k-date-from" type="date" title="Due from" onchange="renderKanban()" />
+          <span class="df-ico">→</span>
+          <input id="k-date-to" type="date" title="Due to" onchange="renderKanban()" />
+        </div>
       </div>
       <div class="kanban-tabs">
         <button class="ktab active" data-page="0" onclick="kanbanPage(0)">Active</button>
@@ -422,16 +452,18 @@
 <div class="modal-overlay" id="modal">
   <div class="modal">
     <h3 id="modal-title">New Task</h3>
-    <p id="restricted-note" style="display:none;background:#fef3c7;color:#92400e;font-size:12.5px;padding:9px 11px;border-radius:9px;margin-bottom:14px">🔒 This task was assigned to you. You can update its <b>status</b> and add <b>comments</b> / <b>attachments</b>. Other fields are managed by the person who created it.</p>
+    <p id="restricted-note" style="display:none;background:#fef3c7;color:#92400e;font-size:12.5px;padding:9px 11px;border-radius:9px;margin-bottom:14px">🔒 This task was assigned to you. You can update its <b>status</b> and <b>progress</b>, and add <b>comments</b> / <b>attachments</b>. Other fields are managed by the person who created it.</p>
     <label class="field-label">Title *</label>
     <input id="t-title" type="text" placeholder="Task title" />
     <label class="field-label">Description</label>
     <textarea id="t-desc" placeholder="Details…"></textarea>
     <div class="form-row">
-      <div><label class="field-label">Status</label><select id="t-status"></select></div>
+      <div><label class="field-label">Status</label><select id="t-status" onchange="onStatusChange()"></select></div>
       <div><label class="field-label">Priority</label><select id="t-priority"></select></div>
       <div><label class="field-label">Due date</label><input id="t-due" type="date" /></div>
     </div>
+    <label class="field-label">Progress: <span id="t-progress-val">0%</span></label>
+    <input id="t-progress" type="range" min="0" max="100" step="5" value="0" oninput="onProgressInput()" />
     <div class="form-row">
       <div><label class="field-label">Responsible *</label><select id="t-assignee"></select></div>
       <div><label class="field-label">Department</label><select id="t-dept" onchange="catalogSelectChange(this,'departments')"></select></div>
@@ -593,6 +625,26 @@
   const isOverdue = t => t.due_date && t.due_date < todayStr() && !['completed','cancelled'].includes(t.status);
   const personName = id => { const p = profiles.find(x => x.id === id); return p ? (p.full_name || p.username) : '—'; };
 
+  // sort by due date: nearest first, tasks without a date go last
+  const byDue = (a, b) => {
+    if (!a.due_date && !b.due_date) return 0;
+    if (!a.due_date) return 1;
+    if (!b.due_date) return -1;
+    return a.due_date.localeCompare(b.due_date);
+  };
+  // due-date range filter (empty fields = no limit; dateless tasks excluded when a limit is set)
+  function passesDate(t, from, to) {
+    if (!from && !to) return true;
+    if (!t.due_date) return false;
+    if (from && t.due_date < from) return false;
+    if (to && t.due_date > to) return false;
+    return true;
+  }
+  // progress rules tied to status
+  const progressForced = s => ['completed','pending','review'].includes(s);
+  const progressForStatus = (s, cur) => s === 'completed' ? 100 : (s === 'pending' || s === 'review') ? 0 : (cur || 0);
+  const progressBarHtml = t => `<div class="progress-row"><div class="progress-wrap"><div class="progress-fill" style="width:${t.progress||0}%"></div></div><span class="progress-pct">${t.progress||0}%</span></div>`;
+
   function fillSelect(el, options, labels, keepFirst) {
     const first = keepFirst ? el.options[0].outerHTML : '';
     el.innerHTML = first + options.map(o => `<option value="${esc(o)}">${esc(labels ? labels[o] : o)}</option>`).join('');
@@ -687,6 +739,8 @@
   // ----- LIST -----
   function renderList() {
     const q = document.getElementById('f-search').value.toLowerCase();
+    const from = document.getElementById('f-date-from').value;
+    const to = document.getElementById('f-date-to').value;
     const S = filterState;
     const filtered = tasks.filter(t =>
       (!q || (t.title + ' ' + (t.description||'') + ' ' + (t.tags||[]).join(' ')).toLowerCase().includes(q)) &&
@@ -694,8 +748,9 @@
       (S.priority.size === 0 || S.priority.has(t.priority)) &&
       (S.dept.size === 0     || S.dept.has(t.department)) &&
       (S.project.size === 0  || S.project.has(t.project)) &&
-      (S.assignee.size === 0 || S.assignee.has(t.assignee_id))
-    );
+      (S.assignee.size === 0 || S.assignee.has(t.assignee_id)) &&
+      passesDate(t, from, to)
+    ).sort(byDue);
 
     const list = document.getElementById('items-list');
     if (!filtered.length) { list.innerHTML = '<p class="empty">No tasks match.<br>Tap + to add one!</p>'; return; }
@@ -717,6 +772,7 @@
           ${(t.tags||[]).map(tag => `<span class="badge outline">#${esc(tag)}</span>`).join('')}
         </div>
         ${t.due_date ? `<div class="card-due ${isOverdue(t)?'overdue':''}">📅 ${t.due_date}${isOverdue(t)?' — OVERDUE':''}</div>` : ''}
+        ${progressBarHtml(t)}
       </div>`).join('');
   }
 
@@ -724,8 +780,9 @@
     const t = tasks.find(x => x.id === id);
     if (!t || t.status === status) return;
     const oldStatus = t.status;
-    t.status = status;
-    const { error } = await db.from('tasks').update({ status, updated_at: new Date().toISOString() }).eq('id', id);
+    const progress = progressForStatus(status, t.progress);
+    t.status = status; t.progress = progress;
+    const { error } = await db.from('tasks').update({ status, progress, updated_at: new Date().toISOString() }).eq('id', id);
     if (error) { alert(error.message); await refreshData(); return; }
     await logActivity(id, `🔄 Status: ${S_LABEL[oldStatus]} → ${S_LABEL[status]}`);
     renderList(); renderDashboard(); renderKanban(); renderCalendar();
@@ -740,7 +797,7 @@
   let kanbanCurrentPage = 0;
 
   function kanbanColHtml(s, pool) {
-    const col = pool.filter(t => t.status === s);
+    const col = pool.filter(t => t.status === s).sort(byDue);
     return `
       <div class="kanban-col" data-status="${s}" ondragover="kanbanOver(event)" ondragleave="kanbanLeave(event)" ondrop="kanbanDrop(event)">
         <h4><span><span class="dot" style="background:var(--${s})"></span>${S_LABEL[s]}</span><span class="count">${col.length}</span></h4>
@@ -752,12 +809,16 @@
               ${t.assignee_id ? `<span class="badge person">👤 ${esc(personName(t.assignee_id))}</span>` : ''}
               ${t.due_date ? `<span class="badge outline">${t.due_date}</span>` : ''}
             </div>
+            ${progressBarHtml(t)}
           </div>`).join('')}
       </div>`;
   }
   function renderKanban() {
     const fa = document.getElementById('k-assignee').value;
-    const pool = fa ? tasks.filter(t => t.assignee_id === fa) : tasks;
+    const from = document.getElementById('k-date-from').value;
+    const to = document.getElementById('k-date-to').value;
+    let pool = fa ? tasks.filter(t => t.assignee_id === fa) : tasks;
+    pool = pool.filter(t => passesDate(t, from, to));
     const pagesEl = document.getElementById('kanban-pages');
     pagesEl.innerHTML = KANBAN_GROUPS.map(statuses =>
       `<div class="kanban-page"><div class="kanban">${statuses.map(s => kanbanColHtml(s, pool)).join('')}</div></div>`).join('');
@@ -787,8 +848,9 @@
     const t = tasks.find(x => x.id === id);
     if (!t || t.status === status) return;
     const oldStatus = t.status;
-    t.status = status; renderAll();
-    await db.from('tasks').update({ status, updated_at: new Date().toISOString() }).eq('id', id);
+    const progress = progressForStatus(status, t.progress);
+    t.status = status; t.progress = progress; renderAll();
+    await db.from('tasks').update({ status, progress, updated_at: new Date().toISOString() }).eq('id', id);
     await logActivity(id, `🔄 Status: ${S_LABEL[oldStatus]} → ${S_LABEL[status]}`);
   }
 
@@ -975,7 +1037,14 @@
     buildCatalogSelect(document.getElementById('t-project'), 'projects', t?.project || '', me?.role === 'admin');
     document.getElementById('t-tags').value = (t?.tags || []).join(', ');
 
-    // permissions: new task or admin/creator = full edit; assignee-only = status + comments + attachments
+    // progress (assignee may edit too; locked only when the status forces a value)
+    const status0 = t?.status || 'pending';
+    const prog0 = t?.progress ?? 0;
+    document.getElementById('t-progress').value = prog0;
+    document.getElementById('t-progress-val').textContent = prog0 + '%';
+    document.getElementById('t-progress').disabled = progressForced(status0);
+
+    // permissions: new task or admin/creator = full edit; assignee-only = status + progress + comments + attachments
     const full = !t || canEditFull(t);
     ['t-title','t-desc','t-priority','t-due','t-assignee','t-dept','t-client','t-project','t-tags']
       .forEach(id => document.getElementById(id).disabled = !full);
@@ -989,6 +1058,16 @@
     history.pushState({ level: 'modal' }, '');
   }
   function canEditFull(t) { return me?.role === 'admin' || t?.user_id === currentUser?.id; }
+  function onProgressInput() {
+    document.getElementById('t-progress-val').textContent = document.getElementById('t-progress').value + '%';
+  }
+  function onStatusChange() {
+    const s = document.getElementById('t-status').value;
+    const el = document.getElementById('t-progress');
+    if (progressForced(s)) { el.value = progressForStatus(s, 0); el.disabled = true; }
+    else { el.disabled = false; }
+    onProgressInput();
+  }
   function closeModalInternal() { document.getElementById('modal').classList.remove('open'); editingId = null; }
   function closeModal() {
     if (history.state?.level === 'modal') history.back();
@@ -998,12 +1077,14 @@
   async function saveTask() {
     const title = document.getElementById('t-title').value.trim();
     if (!title) return alert('Title is required.');
+    const status = document.getElementById('t-status').value;
     const payload = {
       title,
       description: document.getElementById('t-desc').value.trim() || null,
-      status: document.getElementById('t-status').value,
+      status,
       priority: document.getElementById('t-priority').value,
       due_date: document.getElementById('t-due').value || null,
+      progress: progressForStatus(status, +document.getElementById('t-progress').value),
       assignee_id: document.getElementById('t-assignee').value || null,
       department: document.getElementById('t-dept').value || null,
       client: document.getElementById('t-client').value || null,
@@ -1016,6 +1097,7 @@
       const { error } = await db.from('tasks').update(payload).eq('id', editingId);
       if (error) return alert(error.message);
       if (prev && prev.status !== payload.status) await logActivity(editingId, `🔄 Status: ${S_LABEL[prev.status]} → ${S_LABEL[payload.status]}`);
+      if (prev && prev.due_date !== payload.due_date) await logActivity(editingId, `📅 Due date: ${prev.due_date || '(none)'} → ${payload.due_date || '(none)'}`);
     } else {
       const { data, error } = await db.from('tasks').insert({ ...payload, user_id: currentUser.id }).select('id').single();
       if (error) return alert(error.message);
