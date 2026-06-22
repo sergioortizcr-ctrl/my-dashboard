@@ -310,6 +310,7 @@
     <input id="password" type="password" placeholder="Password" autocomplete="current-password" />
     <button class="btn" id="auth-btn" onclick="handleAuth()">Sign In</button>
     <p class="auth-note">No account or forgot your password?<br>Contact the administrator (Sergio Ortiz).</p>
+    <p class="auth-note" id="version-note" style="margin-top:16px;font-size:11px;opacity:.65"></p>
   </div>
 </div>
 
@@ -519,6 +520,8 @@
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ6a2xqdHJvemxqcWJpemdvdGxlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDIzMjMsImV4cCI6MjA5NjY3ODMyM30.AYaXB_81Zpg15PCrpZsO0SCPeK955Rp-f5QMmnuwI4c';
   const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   const SYNTH_DOMAIN = 'todolist-ep.local';
+  const APP_VERSION = 'v6.1';
+  const APP_UPDATED = 'June 24, 2026';
 
   const STATUSES   = ['pending','in_progress','review','blocked','completed','cancelled'];
   const S_LABEL    = { pending:'Pending', in_progress:'In Progress', review:'Review', blocked:'Blocked', completed:'Completed', cancelled:'Cancelled' };
@@ -641,8 +644,8 @@
     return true;
   }
   // progress rules tied to status
-  const progressForced = s => ['completed','pending','review'].includes(s);
-  const progressForStatus = (s, cur) => s === 'completed' ? 100 : (s === 'pending' || s === 'review') ? 0 : (cur || 0);
+  const progressForced = s => ['completed','pending','review'].includes(s); // slider locked for these
+  const progressForStatus = (s, cur) => s === 'completed' ? 100 : s === 'pending' ? 0 : (cur || 0); // review keeps its value
   const progressBarHtml = t => `<div class="progress-row"><div class="progress-wrap"><div class="progress-fill" style="width:${t.progress||0}%"></div></div><span class="progress-pct">${t.progress||0}%</span></div>`;
 
   function fillSelect(el, options, labels, keepFirst) {
@@ -735,6 +738,7 @@
     applyTheme(next);
   }
   applyTheme(localStorage.getItem('theme') || 'light');
+  document.getElementById('version-note').textContent = `Version ${APP_VERSION} · updated ${APP_UPDATED}`;
 
   // ----- LIST -----
   function renderList() {
@@ -1064,8 +1068,8 @@
   function onStatusChange() {
     const s = document.getElementById('t-status').value;
     const el = document.getElementById('t-progress');
-    if (progressForced(s)) { el.value = progressForStatus(s, 0); el.disabled = true; }
-    else { el.disabled = false; }
+    el.value = progressForStatus(s, +el.value); // completed→100, pending→0, review/others keep current %
+    el.disabled = progressForced(s);            // review stays locked but keeps its value
     onProgressInput();
   }
   function closeModalInternal() { document.getElementById('modal').classList.remove('open'); editingId = null; }
