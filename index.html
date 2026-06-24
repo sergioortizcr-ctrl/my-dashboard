@@ -581,7 +581,7 @@
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ6a2xqdHJvemxqcWJpemdvdGxlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDIzMjMsImV4cCI6MjA5NjY3ODMyM30.AYaXB_81Zpg15PCrpZsO0SCPeK955Rp-f5QMmnuwI4c';
   const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   const SYNTH_DOMAIN = 'todolist-ep.local';
-  const APP_VERSION = 'v7.1';
+  const APP_VERSION = 'v7.2';
   const APP_UPDATED = 'June 24, 2026';
 
   const STATUSES   = ['pending','in_progress','review','blocked','completed','cancelled'];
@@ -952,7 +952,7 @@
     for (let i = 0; i < 42; i++) {
       const d = new Date(start); d.setDate(start.getDate() + i);
       const ds = d.toISOString().slice(0,10);
-      const dayTasks = tasks.filter(t => t.due_date === ds && t.status !== 'cancelled');
+      const dayTasks = tasks.filter(t => t.due_date === ds && !['completed','cancelled'].includes(t.status));
       const dots = dayTasks.slice(0,5).map(t => `<span class="cal-dot" style="background:var(--${t.priority})"></span>`).join('');
       html += `
         <div class="cal-day ${d.getMonth() !== m ? 'other' : ''} ${ds === todayStr() ? 'today' : ''}" onclick="openDay('${ds}')">
@@ -964,7 +964,7 @@
   }
 
   function openDay(ds) {
-    const dayTasks = tasks.filter(t => t.due_date === ds && t.status !== 'cancelled');
+    const dayTasks = tasks.filter(t => t.due_date === ds && !['completed','cancelled'].includes(t.status));
     const nice = new Date(ds + 'T00:00:00').toLocaleDateString('en', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     document.getElementById('day-modal-title').textContent = nice;
     document.getElementById('day-modal-list').innerHTML = dayTasks.length
