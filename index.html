@@ -280,6 +280,29 @@
     input[type="range"] { -webkit-appearance: auto; appearance: auto; padding: 0; border: none; background: transparent; height: 28px; margin-bottom: 6px; }
     #t-progress:disabled { opacity: .55; }
 
+    /* quick date-range buttons */
+    .quick-range { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+    .qbtn { padding: 6px 12px; border-radius: 16px; border: 1.5px solid #ddd; background: #fff; cursor: pointer; font-size: 12.5px; font-weight: 500; color: var(--muted); white-space: nowrap; }
+    .qbtn:hover { border-color: var(--primary); color: var(--primary); }
+    [data-theme="dark"] .qbtn { background: #1e293b; border-color: #334155; color: #cbd5e1; }
+
+    /* notifications bell + panel */
+    #notif-btn { position: relative; background: #f3f4f6; border: none; border-radius: 8px; padding: 6px 10px; cursor: pointer; font-size: 15px; line-height: 1; }
+    #notif-badge { position: absolute; top: -5px; right: -5px; background: #dc2626; color: #fff; font-size: 10px; min-width: 16px; height: 16px; border-radius: 8px; display: none; align-items: center; justify-content: center; padding: 0 4px; font-weight: 700; }
+    .notif-panel { display: none; position: fixed; top: 52px; right: 12px; width: 310px; max-width: 92vw; max-height: 70vh; overflow-y: auto; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,.18); z-index: 120; }
+    .notif-panel.open { display: block; }
+    .notif-head { font-weight: 700; font-size: 14px; padding: 12px 14px; border-bottom: 1px solid #eee; position: sticky; top: 0; background: inherit; }
+    .notif-item { padding: 11px 14px; border-bottom: 1px solid #f3f4f6; cursor: pointer; font-size: 13.5px; }
+    .notif-item:hover { background: #f8f9fb; }
+    .notif-item.unread { background: #eff6ff; }
+    .notif-time { font-size: 11px; color: var(--muted); margin-top: 3px; }
+    [data-theme="dark"] #notif-btn { background: #334155; }
+    [data-theme="dark"] .notif-panel { background: #1e293b; border-color: #334155; }
+    [data-theme="dark"] .notif-head { border-color: #334155; }
+    [data-theme="dark"] .notif-item { border-color: #293548; }
+    [data-theme="dark"] .notif-item:hover { background: #334155; }
+    [data-theme="dark"] .notif-item.unread { background: #1e3a5f; }
+
     @media (min-width: 640px) { .modal-overlay { align-items: center; padding: 20px; } .modal { border-radius: 20px; } }
     @media (max-width: 560px) { .form-row { flex-direction: column; gap: 0; } .cal-day { min-height: 58px; } }
   </style>
@@ -335,10 +358,16 @@
     <span class="logo" id="header-logo"><img src="logo_operaciones.png" alt="EP" class="brand-img-header" /><h2><span class="brand-name"><span class="b1">ToDo-list Operations</span> <span class="b2">EP</span></span></h2></span>
     <div class="header-right">
       <span class="user-chip" id="user-chip"></span>
+      <button id="notif-btn" onclick="toggleNotif()" title="Notifications">🔔<span id="notif-badge">0</span></button>
       <button id="theme-btn" onclick="toggleTheme()" title="Toggle dark mode">🌙</button>
       <button id="signout-btn" onclick="db.auth.signOut()">Sign out</button>
     </div>
   </header>
+
+  <div id="notif-panel" class="notif-panel">
+    <div class="notif-head">🔔 Notifications</div>
+    <div id="notif-list"></div>
+  </div>
 
   <nav>
     <button class="nav-tab active" data-view="dashboard" onclick="switchView('dashboard', this)">📊 Dashboard</button>
@@ -351,6 +380,20 @@
   <div class="container">
     <!-- DASHBOARD -->
     <div class="view active" id="view-dashboard">
+      <div class="filter-bar">
+        <div class="date-filter">
+          <span class="df-ico">📅</span>
+          <input id="d-date-from" type="date" title="Due from" onchange="renderDashboard()" />
+          <span class="df-ico">→</span>
+          <input id="d-date-to" type="date" title="Due to" onchange="renderDashboard()" />
+        </div>
+        <div class="quick-range">
+          <button class="qbtn" onclick="quickRange('d','today')">Today</button>
+          <button class="qbtn" onclick="quickRange('d','week')">This week</button>
+          <button class="qbtn" onclick="quickRange('d','month')">This month</button>
+          <button class="qbtn" onclick="quickRange('d','all')">All</button>
+        </div>
+      </div>
       <div class="stats-grid" id="stats-grid"></div>
       <div class="chart-box"><h4>Open tasks by responsible</h4><div id="chart-user"></div></div>
       <div class="chart-box"><h4>Tasks by status</h4><div id="chart-status"></div></div>
@@ -373,6 +416,12 @@
           <span class="df-ico">→</span>
           <input id="f-date-to" type="date" title="Due to" onchange="renderList()" />
         </div>
+        <div class="quick-range">
+          <button class="qbtn" onclick="quickRange('f','today')">Today</button>
+          <button class="qbtn" onclick="quickRange('f','week')">This week</button>
+          <button class="qbtn" onclick="quickRange('f','month')">This month</button>
+          <button class="qbtn" onclick="quickRange('f','all')">All</button>
+        </div>
       </div>
       <div id="items-list"></div>
     </div>
@@ -386,6 +435,12 @@
           <input id="k-date-from" type="date" title="Due from" onchange="renderKanban()" />
           <span class="df-ico">→</span>
           <input id="k-date-to" type="date" title="Due to" onchange="renderKanban()" />
+        </div>
+        <div class="quick-range">
+          <button class="qbtn" onclick="quickRange('k','today')">Today</button>
+          <button class="qbtn" onclick="quickRange('k','week')">This week</button>
+          <button class="qbtn" onclick="quickRange('k','month')">This month</button>
+          <button class="qbtn" onclick="quickRange('k','all')">All</button>
         </div>
       </div>
       <div class="kanban-tabs">
@@ -471,6 +526,10 @@
       <div><label class="field-label">Department</label><select id="t-dept" onchange="catalogSelectChange(this,'departments')"></select></div>
     </div>
     <div class="form-row">
+      <div><label class="field-label">Responsible 2</label><select id="t-assignee2"></select></div>
+      <div><label class="field-label">Responsible 3</label><select id="t-assignee3"></select></div>
+    </div>
+    <div class="form-row">
       <div><label class="field-label">Client</label><select id="t-client" onchange="catalogSelectChange(this,'clients')"></select></div>
       <div><label class="field-label">Project</label><select id="t-project" onchange="catalogSelectChange(this,'projects')"></select></div>
     </div>
@@ -521,7 +580,7 @@
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ6a2xqdHJvemxqcWJpemdvdGxlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDIzMjMsImV4cCI6MjA5NjY3ODMyM30.AYaXB_81Zpg15PCrpZsO0SCPeK955Rp-f5QMmnuwI4c';
   const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   const SYNTH_DOMAIN = 'todolist-ep.local';
-  const APP_VERSION = 'v6.2';
+  const APP_VERSION = 'v7.0';
   const APP_UPDATED = 'June 24, 2026';
 
   const STATUSES   = ['pending','in_progress','review','blocked','completed','cancelled'];
@@ -531,6 +590,7 @@
 
   let tasks = [], profiles = [], catalogs = { departments: [], clients: [], projects: [] };
   let me = null, currentUser = null, editingId = null, calDate = new Date(), currentView = 'dashboard';
+  let notifications = [], notifChannel = null;
 
   // multi-select filter state (empty set = "all")
   const filterState = { status:new Set(), priority:new Set(), dept:new Set(), project:new Set(), assignee:new Set() };
@@ -552,7 +612,7 @@
     if (!session) { showScreen('auth'); return; }
     await loadMe();
     if (me?.must_change_password) showScreen('pw');
-    else { showScreen('app'); await refreshData(); }
+    else { showScreen('app'); await refreshData(); await loadNotifications(); subscribeNotifications(); }
   });
 
   function showScreen(name) {
@@ -628,6 +688,7 @@
   const todayStr = () => new Date().toISOString().slice(0,10);
   const isOverdue = t => t.due_date && t.due_date < todayStr() && !['completed','cancelled'].includes(t.status);
   const personName = id => { const p = profiles.find(x => x.id === id); return p ? (p.full_name || p.username) : '—'; };
+  const assigneesOf = t => [t.assignee_id, t.assignee2_id, t.assignee3_id].filter(Boolean);
 
   // sort by due date: nearest first, tasks without a date go last
   const byDue = (a, b) => {
@@ -644,6 +705,25 @@
     if (to && t.due_date > to) return false;
     return true;
   }
+  // quick date ranges (local dates so they match the date inputs)
+  function computeRange(range) {
+    const pad = n => String(n).padStart(2, '0');
+    const fmt = x => `${x.getFullYear()}-${pad(x.getMonth()+1)}-${pad(x.getDate())}`;
+    const d = new Date();
+    if (range === 'today') return [fmt(d), fmt(d)];
+    if (range === 'week')  { const s = new Date(d); s.setDate(d.getDate()-d.getDay()); const e = new Date(s); e.setDate(s.getDate()+6); return [fmt(s), fmt(e)]; }
+    if (range === 'month') { const s = new Date(d.getFullYear(), d.getMonth(), 1); const e = new Date(d.getFullYear(), d.getMonth()+1, 0); return [fmt(s), fmt(e)]; }
+    return ['', ''];
+  }
+  function quickRange(prefix, range) {
+    const [from, to] = computeRange(range);
+    document.getElementById(prefix + '-date-from').value = from;
+    document.getElementById(prefix + '-date-to').value = to;
+    if (prefix === 'f') renderList();
+    else if (prefix === 'k') renderKanban();
+    else renderDashboard();
+  }
+
   // progress rules tied to status
   const progressForced = s => ['completed','pending','review'].includes(s); // slider locked for these
   const progressForStatus = (s, cur) => s === 'completed' ? 100 : s === 'pending' ? 0 : (cur || 0); // review keeps its value
@@ -753,7 +833,7 @@
       (S.priority.size === 0 || S.priority.has(t.priority)) &&
       (S.dept.size === 0     || S.dept.has(t.department)) &&
       (S.project.size === 0  || S.project.has(t.project)) &&
-      (S.assignee.size === 0 || S.assignee.has(t.assignee_id)) &&
+      (S.assignee.size === 0 || assigneesOf(t).some(a => S.assignee.has(a))) &&
       passesDate(t, from, to)
     ).sort(byDue);
 
@@ -770,7 +850,7 @@
         </div>
         <div class="badges">
           <span class="badge" style="background:var(--${t.priority})">${P_LABEL[t.priority]}</span>
-          ${t.assignee_id ? `<span class="badge person">👤 ${esc(personName(t.assignee_id))}</span>` : ''}
+          ${assigneesOf(t).map(a => `<span class="badge person">👤 ${esc(personName(a))}</span>`).join('')}
           ${t.department ? `<span class="badge outline">🏢 ${esc(t.department)}</span>` : ''}
           ${t.client ? `<span class="badge outline">🤝 ${esc(t.client)}</span>` : ''}
           ${t.project ? `<span class="badge outline">📁 ${esc(t.project)}</span>` : ''}
@@ -811,7 +891,7 @@
             <div>${esc(t.title)}</div>
             <div class="kc-meta">
               <span class="badge" style="background:var(--${t.priority})">${P_LABEL[t.priority]}</span>
-              ${t.assignee_id ? `<span class="badge person">👤 ${esc(personName(t.assignee_id))}</span>` : ''}
+              ${assigneesOf(t).map(a => `<span class="badge person">👤 ${esc(personName(a))}</span>`).join('')}
               ${t.due_date ? `<span class="badge outline">${t.due_date}</span>` : ''}
             </div>
             ${progressBarHtml(t)}
@@ -822,7 +902,7 @@
     const fa = document.getElementById('k-assignee').value;
     const from = document.getElementById('k-date-from').value;
     const to = document.getElementById('k-date-to').value;
-    let pool = fa ? tasks.filter(t => t.assignee_id === fa) : tasks;
+    let pool = fa ? tasks.filter(t => assigneesOf(t).includes(fa)) : tasks;
     pool = pool.filter(t => passesDate(t, from, to));
     const pagesEl = document.getElementById('kanban-pages');
     pagesEl.innerHTML = KANBAN_GROUPS.map(statuses =>
@@ -905,18 +985,21 @@
 
   // ----- DASHBOARD -----
   function renderDashboard() {
-    const open = tasks.filter(t => !['completed','cancelled'].includes(t.status));
-    const overdue = tasks.filter(isOverdue);
-    const doneWeek = tasks.filter(t => t.status === 'completed' && t.updated_at >= new Date(Date.now() - 7*864e5).toISOString());
+    const from = document.getElementById('d-date-from').value;
+    const to = document.getElementById('d-date-to').value;
+    const scoped = tasks.filter(t => passesDate(t, from, to));
+    const open = scoped.filter(t => !['completed','cancelled'].includes(t.status));
+    const overdue = scoped.filter(isOverdue);
+    const doneWeek = scoped.filter(t => t.status === 'completed' && t.updated_at >= new Date(Date.now() - 7*864e5).toISOString());
     document.getElementById('stats-grid').innerHTML = `
       <div class="stat-card"><div class="num">${open.length}</div><div class="lbl">Open tasks</div></div>
       <div class="stat-card"><div class="num" style="color:#dc2626">${overdue.length}</div><div class="lbl">Overdue</div></div>
       <div class="stat-card"><div class="num" style="color:#10b981">${doneWeek.length}</div><div class="lbl">Completed (7 days)</div></div>
-      <div class="stat-card"><div class="num">${tasks.length}</div><div class="lbl">Total tasks</div></div>`;
+      <div class="stat-card"><div class="num">${scoped.length}</div><div class="lbl">Total tasks</div></div>`;
 
-    pieChart('chart-user', profiles.map((p, i) => [p.full_name || p.username, open.filter(t => t.assignee_id === p.id).length, PALETTE[i % PALETTE.length]])
-      .concat(open.some(t => !t.assignee_id) ? [['(unassigned)', open.filter(t => !t.assignee_id).length, '#9ca3af']] : []));
-    pieChart('chart-status', STATUSES.map(s => [S_LABEL[s], tasks.filter(t => t.status === s).length, STATUS_HEX[s]]));
+    pieChart('chart-user', profiles.map((p, i) => [p.full_name || p.username, open.filter(t => assigneesOf(t).includes(p.id)).length, PALETTE[i % PALETTE.length]])
+      .concat(open.some(t => !assigneesOf(t).length) ? [['(unassigned)', open.filter(t => !assigneesOf(t).length).length, '#9ca3af']] : []));
+    pieChart('chart-status', STATUSES.map(s => [S_LABEL[s], scoped.filter(t => t.status === s).length, STATUS_HEX[s]]));
     pieChart('chart-priority', PRIORITIES.map(p => [P_LABEL[p], open.filter(t => t.priority === p).length, PRIORITY_HEX[p]]));
     const depts = catalogs.departments.map(d => d.name);
     pieChart('chart-dept', depts.map((d, i) => [d, open.filter(t => t.department === d).length, PALETTE[i % PALETTE.length]]));
@@ -1003,6 +1086,10 @@
   }
 
   // ============ MODAL / CRUD ============
+  function buildPeopleSelect(el, selectedId) {
+    el.innerHTML = '<option value="">— none —</option>' +
+      profiles.map(p => `<option value="${p.id}" ${selectedId === p.id ? 'selected' : ''}>${esc(p.full_name || p.username)}</option>`).join('');
+  }
   function buildCatalogSelect(el, cat, selected, allowAdd) {
     const items = catalogs[cat].map(x => x.name);
     let html = '<option value="">—</option>' + items.map(n => `<option value="${esc(n)}" ${n === selected ? 'selected' : ''}>${esc(n)}</option>`).join('');
@@ -1037,6 +1124,8 @@
     document.getElementById('t-due').value = t?.due_date || '';
     document.getElementById('t-assignee').innerHTML = '<option value="">— unassigned —</option>' +
       profiles.map(p => `<option value="${p.id}" ${t?.assignee_id === p.id ? 'selected' : ''}>${esc(p.full_name || p.username)}</option>`).join('');
+    buildPeopleSelect(document.getElementById('t-assignee2'), t?.assignee2_id || '');
+    buildPeopleSelect(document.getElementById('t-assignee3'), t?.assignee3_id || '');
     buildCatalogSelect(document.getElementById('t-dept'), 'departments', t?.department || '', true);
     buildCatalogSelect(document.getElementById('t-client'), 'clients', t?.client || '', true);
     buildCatalogSelect(document.getElementById('t-project'), 'projects', t?.project || '', me?.role === 'admin');
@@ -1051,7 +1140,7 @@
 
     // permissions: new task or admin/creator = full edit; assignee-only = status + progress + comments + attachments
     const full = !t || canEditFull(t);
-    ['t-title','t-desc','t-priority','t-due','t-assignee','t-dept','t-client','t-project','t-tags']
+    ['t-title','t-desc','t-priority','t-due','t-assignee','t-assignee2','t-assignee3','t-dept','t-client','t-project','t-tags']
       .forEach(id => document.getElementById(id).disabled = !full);
     document.getElementById('restricted-note').style.display = full ? 'none' : 'block';
     document.getElementById('btn-delete').style.display = (t && full) ? 'block' : 'none';
@@ -1091,25 +1180,80 @@
       due_date: document.getElementById('t-due').value || null,
       progress: progressForStatus(status, +document.getElementById('t-progress').value),
       assignee_id: document.getElementById('t-assignee').value || null,
+      assignee2_id: document.getElementById('t-assignee2').value || null,
+      assignee3_id: document.getElementById('t-assignee3').value || null,
       department: document.getElementById('t-dept').value || null,
       client: document.getElementById('t-client').value || null,
       project: document.getElementById('t-project').value || null,
       tags: document.getElementById('t-tags').value.split(',').map(s => s.trim()).filter(Boolean),
       updated_at: new Date().toISOString(),
     };
+    const newAssignees = [payload.assignee_id, payload.assignee2_id, payload.assignee3_id].filter(Boolean);
     if (editingId) {
       const prev = tasks.find(x => x.id === editingId);
       const { error } = await db.from('tasks').update(payload).eq('id', editingId);
       if (error) return alert(error.message);
       if (prev && prev.status !== payload.status) await logActivity(editingId, `🔄 Status: ${S_LABEL[prev.status]} → ${S_LABEL[payload.status]}`);
       if (prev && prev.due_date !== payload.due_date) await logActivity(editingId, `📅 Due date: ${prev.due_date || '(none)'} → ${payload.due_date || '(none)'}`);
+      const prevAssignees = prev ? [prev.assignee_id, prev.assignee2_id, prev.assignee3_id].filter(Boolean) : [];
+      await notifyAssignees(editingId, payload.title, newAssignees.filter(a => !prevAssignees.includes(a)));
     } else {
       const { data, error } = await db.from('tasks').insert({ ...payload, user_id: currentUser.id }).select('id').single();
       if (error) return alert(error.message);
       await logActivity(data.id, '📌 Created this task');
+      await notifyAssignees(data.id, payload.title, newAssignees);
     }
     closeModal();
     await refreshData();
+  }
+
+  // notify each responsible (except myself) that a task was assigned to them
+  async function notifyAssignees(taskId, title, recipientIds) {
+    const ids = [...new Set(recipientIds)].filter(a => a && a !== currentUser.id);
+    if (!ids.length) return;
+    const rows = ids.map(uid => ({ user_id: uid, task_id: taskId, message: `📌 New task assigned to you: ${title}` }));
+    await db.from('notifications').insert(rows);
+  }
+
+  // ----- NOTIFICATIONS BELL -----
+  async function loadNotifications() {
+    const { data } = await db.from('notifications').select('*').eq('user_id', currentUser.id).order('created_at', { ascending: false }).limit(50);
+    notifications = data || [];
+    renderNotifBadge();
+  }
+  function renderNotifBadge() {
+    const n = notifications.filter(x => !x.read).length;
+    const b = document.getElementById('notif-badge');
+    b.textContent = n; b.style.display = n ? 'flex' : 'none';
+  }
+  function renderNotifList() {
+    document.getElementById('notif-list').innerHTML = notifications.length
+      ? notifications.map(n => `<div class="notif-item ${n.read ? '' : 'unread'}" onclick="openNotif('${n.task_id}')">${esc(n.message)}<div class="notif-time">${new Date(n.created_at).toLocaleString()}</div></div>`).join('')
+      : '<p style="color:var(--muted);font-size:13px;padding:16px;text-align:center">No notifications yet.</p>';
+  }
+  function toggleNotif() {
+    const p = document.getElementById('notif-panel');
+    if (p.classList.toggle('open')) { renderNotifList(); markAllRead(); }
+  }
+  async function markAllRead() {
+    if (!notifications.some(n => !n.read)) return;
+    notifications.forEach(n => n.read = true);
+    renderNotifBadge();
+    await db.from('notifications').update({ read: true }).eq('user_id', currentUser.id).eq('read', false);
+  }
+  function openNotif(taskId) {
+    document.getElementById('notif-panel').classList.remove('open');
+    if (taskId && taskId !== 'null' && tasks.find(t => t.id === taskId)) openModal(taskId);
+  }
+  function subscribeNotifications() {
+    if (notifChannel) { db.removeChannel(notifChannel); notifChannel = null; }
+    notifChannel = db.channel('notif-' + currentUser.id)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${currentUser.id}` }, payload => {
+        notifications.unshift(payload.new);
+        renderNotifBadge();
+        if (document.getElementById('notif-panel').classList.contains('open')) renderNotifList();
+      })
+      .subscribe();
   }
 
   async function deleteTask() {
@@ -1201,6 +1345,9 @@
   // misc
   document.getElementById('modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
   document.getElementById('day-modal').addEventListener('click', e => { if (e.target.id === 'day-modal') closeDay(); });
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#notif-panel') && !e.target.closest('#notif-btn')) document.getElementById('notif-panel').classList.remove('open');
+  });
   document.getElementById('password').addEventListener('keydown', e => { if (e.key === 'Enter') handleAuth(); });
   document.getElementById('c-body').addEventListener('keydown', e => { if (e.key === 'Enter') addComment(); });
 </script>
