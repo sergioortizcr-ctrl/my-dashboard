@@ -285,7 +285,22 @@
     .quick-range { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
     .qbtn { padding: 6px 12px; border-radius: 16px; border: 1.5px solid #ddd; background: #fff; cursor: pointer; font-size: 12.5px; font-weight: 500; color: var(--muted); white-space: nowrap; }
     .qbtn:hover { border-color: var(--primary); color: var(--primary); }
+    .qbtn.active { background: #dc2626; color: #fff; border-color: #dc2626; }
     [data-theme="dark"] .qbtn { background: #1e293b; border-color: #334155; color: #cbd5e1; }
+    [data-theme="dark"] .qbtn.active { background: #dc2626; color: #fff; border-color: #dc2626; }
+
+    /* table view */
+    .table-wrap { overflow-x: auto; background: var(--card); border-radius: 12px; box-shadow: 0 1px 5px rgba(0,0,0,.05); }
+    .task-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 860px; }
+    .task-table th { text-align: left; padding: 10px 12px; border-bottom: 1.5px solid #e5e7eb; color: var(--muted); font-size: 11.5px; text-transform: uppercase; white-space: nowrap; }
+    .task-table td { padding: 10px 12px; border-bottom: 1px solid #f3f4f6; vertical-align: top; }
+    .task-table tr:hover td { background: #f8f9fb; }
+    .task-title-link { color: var(--primary); font-weight: 600; cursor: pointer; }
+    .tcomment { margin-bottom: 7px; max-width: 340px; }
+    .tcomment .tc-meta { color: var(--muted); font-size: 11px; }
+    [data-theme="dark"] .task-table th { border-color: #334155; }
+    [data-theme="dark"] .task-table td { border-color: #293548; }
+    [data-theme="dark"] .task-table tr:hover td { background: #263449; }
 
     /* notifications bell + panel */
     #notif-btn { position: relative; background: #f3f4f6; border: none; border-radius: 8px; padding: 6px 10px; cursor: pointer; font-size: 15px; line-height: 1; }
@@ -375,6 +390,7 @@
     <button class="nav-tab" data-view="list" onclick="switchView('list', this)">📋 Tasks</button>
     <button class="nav-tab" data-view="kanban" onclick="switchView('kanban', this)">🗂️ Kanban</button>
     <button class="nav-tab" data-view="calendar" onclick="switchView('calendar', this)">📅 Calendar</button>
+    <button class="nav-tab" data-view="table" onclick="switchView('table', this)">📄 Table</button>
     <button class="nav-tab" data-view="admin" id="admin-tab" style="display:none" onclick="switchView('admin', this)">⚙️ Admin</button>
   </nav>
 
@@ -400,6 +416,8 @@
       <div class="chart-box"><h4>Tasks by status</h4><div id="chart-status"></div></div>
       <div class="chart-box"><h4>Tasks by priority (open)</h4><div id="chart-priority"></div></div>
       <div class="chart-box"><h4>Open tasks by department</h4><div id="chart-dept"></div></div>
+      <div class="chart-box"><h4>On-time performance</h4><div id="chart-ontime"></div></div>
+      <div class="chart-box"><h4>Tasks created — last 15 days</h4><div id="chart-created"></div></div>
     </div>
 
     <!-- LIST -->
@@ -442,6 +460,7 @@
           <button class="qbtn" onclick="quickRange('k','week')">This week</button>
           <button class="qbtn" onclick="quickRange('k','month')">This month</button>
           <button class="qbtn" onclick="quickRange('k','all')">All</button>
+          <button class="qbtn" id="k-overdue" onclick="toggleKanbanOverdue(this)">⚠️ Overdue only</button>
         </div>
       </div>
       <div class="kanban-tabs">
@@ -459,6 +478,39 @@
         <button class="cal-nav" onclick="calMove(1)">Next ›</button>
       </div>
       <div class="cal-grid" id="cal-grid"></div>
+    </div>
+
+    <!-- TABLE -->
+    <div class="view" id="view-table">
+      <div class="filter-bar">
+        <input id="tb-search" type="text" placeholder="🔍 Search…" oninput="renderTable()" />
+        <div class="ms" id="ms2-status"></div>
+        <div class="ms" id="ms2-priority"></div>
+        <div class="ms" id="ms2-dept"></div>
+        <div class="ms" id="ms2-project"></div>
+        <div class="ms" id="ms2-assignee"></div>
+        <div class="date-filter">
+          <span class="df-ico">📅</span>
+          <input id="tb-date-from" type="date" title="Due from" onchange="renderTable()" />
+          <span class="df-ico">→</span>
+          <input id="tb-date-to" type="date" title="Due to" onchange="renderTable()" />
+        </div>
+        <div class="quick-range">
+          <button class="qbtn" onclick="quickRange('tb','today')">Today</button>
+          <button class="qbtn" onclick="quickRange('tb','week')">This week</button>
+          <button class="qbtn" onclick="quickRange('tb','month')">This month</button>
+          <button class="qbtn" onclick="quickRange('tb','all')">All</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="task-table">
+          <thead><tr>
+            <th>Created</th><th>Task</th><th>Status</th><th>Priority</th><th>Due date</th>
+            <th>Responsible(s)</th><th>%</th><th>Comments</th>
+          </tr></thead>
+          <tbody id="table-body"></tbody>
+        </table>
+      </div>
     </div>
 
     <!-- ADMIN -->
@@ -581,7 +633,7 @@
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ6a2xqdHJvemxqcWJpemdvdGxlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDIzMjMsImV4cCI6MjA5NjY3ODMyM30.AYaXB_81Zpg15PCrpZsO0SCPeK955Rp-f5QMmnuwI4c';
   const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   const SYNTH_DOMAIN = 'todolist-ep.local';
-  const APP_VERSION = 'v7.2';
+  const APP_VERSION = 'v7.3';
   const APP_UPDATED = 'June 24, 2026';
 
   const STATUSES   = ['pending','in_progress','review','blocked','completed','cancelled'];
@@ -592,15 +644,16 @@
   let tasks = [], profiles = [], catalogs = { departments: [], clients: [], projects: [] };
   let me = null, currentUser = null, editingId = null, calDate = new Date(), currentView = 'dashboard';
   let notifications = [], notifChannel = null;
+  let kanbanOverdueOnly = false, commentsByTask = {};
 
   // multi-select filter state (empty set = "all")
   const filterState = { status:new Set(), priority:new Set(), dept:new Set(), project:new Set(), assignee:new Set() };
   const MS_DEFS = {
-    status:   { container:'ms-status',   def:'All statuses' },
-    priority: { container:'ms-priority', def:'All priorities' },
-    dept:     { container:'ms-dept',     def:'All departments' },
-    project:  { container:'ms-project',  def:'All projects' },
-    assignee: { container:'ms-assignee', def:'Everyone' },
+    status:   { containers:['ms-status','ms2-status'],     def:'All statuses' },
+    priority: { containers:['ms-priority','ms2-priority'], def:'All priorities' },
+    dept:     { containers:['ms-dept','ms2-dept'],         def:'All departments' },
+    project:  { containers:['ms-project','ms2-project'],   def:'All projects' },
+    assignee: { containers:['ms-assignee','ms2-assignee'], def:'Everyone' },
   };
   const PALETTE = ['#2563eb','#16a34a','#f59e0b','#8b5cf6','#ef4444','#06b6d4','#ec4899','#84cc16','#f97316','#6366f1','#14b8a6','#a855f7'];
   const STATUS_HEX = { pending:'#f59e0b', in_progress:'#3b82f6', review:'#8b5cf6', blocked:'#ef4444', completed:'#10b981', cancelled:'#9ca3af' };
@@ -670,19 +723,22 @@
 
   // ============ DATA ============
   async function refreshData() {
-    const [t, p, d, c, pr] = await Promise.all([
+    const [t, p, d, c, pr, cm] = await Promise.all([
       db.from('tasks').select('*').order('created_at', { ascending: false }),
       db.from('profiles').select('*').order('username'),
       db.from('departments').select('*').order('name'),
       db.from('clients').select('*').order('name'),
       db.from('projects').select('*').order('name'),
+      db.from('task_comments').select('*').order('created_at'),
     ]);
     if (t.error) return alert('Error loading tasks: ' + t.error.message);
     tasks = t.data; profiles = p.data || [];
     catalogs.departments = d.data || []; catalogs.clients = c.data || []; catalogs.projects = pr.data || [];
+    commentsByTask = {};
+    (cm.data || []).forEach(x => { if (x.kind !== 'activity') (commentsByTask[x.task_id] = commentsByTask[x.task_id] || []).push(x); });
     renderAll();
   }
-  function renderAll() { renderDashboard(); renderList(); renderKanban(); renderCalendar(); refreshFilters(); if (me?.role === 'admin') renderAdmin(); }
+  function renderAll() { renderDashboard(); renderList(); renderKanban(); renderCalendar(); renderTable(); refreshFilters(); if (me?.role === 'admin') renderAdmin(); }
 
   // ============ HELPERS ============
   const esc = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -722,6 +778,7 @@
     document.getElementById(prefix + '-date-to').value = to;
     if (prefix === 'f') renderList();
     else if (prefix === 'k') renderKanban();
+    else if (prefix === 'tb') renderTable();
     else renderDashboard();
   }
 
@@ -757,30 +814,39 @@
     return sel.size + ' selected';
   }
   function buildMulti(key) {
-    const el = document.getElementById(MS_DEFS[key].container);
     const opts = msOptions(key), sel = filterState[key];
     [...sel].forEach(v => { if (!opts.some(o => o.value === v)) sel.delete(v); }); // drop stale picks
-    el.innerHTML = `
-      <button type="button" class="ms-btn ${sel.size ? 'has-sel' : ''}" onclick="toggleMs('${key}')">
+    MS_DEFS[key].containers.forEach(cid => {
+      const el = document.getElementById(cid);
+      if (!el) return;
+      el.innerHTML = `
+      <button type="button" class="ms-btn ${sel.size ? 'has-sel' : ''}" onclick="toggleMs(this)">
         <span>${esc(msLabel(key))}</span><span>▾</span>
       </button>
       <div class="ms-panel">
         ${opts.map(o => `<label><input type="checkbox" value="${esc(o.value)}" ${sel.has(o.value) ? 'checked' : ''} onchange="msToggle('${key}','${esc(o.value)}',this.checked)"> ${esc(o.label)}</label>`).join('')
           || '<div style="padding:8px;color:var(--muted);font-size:13px">No options yet</div>'}
       </div>`;
+    });
   }
-  function toggleMs(key) {
-    const el = document.getElementById(MS_DEFS[key].container);
+  function toggleMs(btn) {
+    const el = btn.closest('.ms');
     const wasOpen = el.classList.contains('open');
     document.querySelectorAll('.ms.open').forEach(m => m.classList.remove('open'));
     if (!wasOpen) el.classList.add('open');
   }
   function msToggle(key, value, checked) {
     if (checked) filterState[key].add(value); else filterState[key].delete(value);
-    const btn = document.getElementById(MS_DEFS[key].container).querySelector('.ms-btn');
-    btn.classList.toggle('has-sel', filterState[key].size > 0);
-    btn.querySelector('span').textContent = msLabel(key);
-    renderList();
+    MS_DEFS[key].containers.forEach(cid => {
+      const btn = document.getElementById(cid)?.querySelector('.ms-btn');
+      if (!btn) return;
+      btn.classList.toggle('has-sel', filterState[key].size > 0);
+      btn.querySelector('span').textContent = msLabel(key);
+      // keep the checkbox in the other widget in sync
+      const cb = document.getElementById(cid).querySelector(`input[value="${CSS.escape(value)}"]`);
+      if (cb) cb.checked = checked;
+    });
+    renderList(); renderTable();
   }
   document.addEventListener('click', e => {
     if (!e.target.closest('.ms')) document.querySelectorAll('.ms.open').forEach(m => m.classList.remove('open'));
@@ -878,6 +944,40 @@
     await db.from('task_comments').insert({ task_id: taskId, user_id: currentUser.id, body, kind: 'activity' });
   }
 
+  // ----- TABLE VIEW -----
+  function renderTable() {
+    const body = document.getElementById('table-body');
+    if (!body) return;
+    const q = document.getElementById('tb-search').value.toLowerCase();
+    const from = document.getElementById('tb-date-from').value;
+    const to = document.getElementById('tb-date-to').value;
+    const S = filterState;
+    const filtered = tasks.filter(t =>
+      (!q || (t.title + ' ' + (t.description||'') + ' ' + (t.tags||[]).join(' ')).toLowerCase().includes(q)) &&
+      (S.status.size === 0   || S.status.has(t.status)) &&
+      (S.priority.size === 0 || S.priority.has(t.priority)) &&
+      (S.dept.size === 0     || S.dept.has(t.department)) &&
+      (S.project.size === 0  || S.project.has(t.project)) &&
+      (S.assignee.size === 0 || assigneesOf(t).some(a => S.assignee.has(a))) &&
+      passesDate(t, from, to)
+    ).sort((a, b) => (a.created_at || '').localeCompare(b.created_at || '')); // oldest first
+
+    body.innerHTML = filtered.length ? filtered.map(t => `
+      <tr>
+        <td>${(t.created_at || '').slice(0,10)}</td>
+        <td><span class="task-title-link" onclick="openModal('${t.id}')">${esc(t.title)}</span></td>
+        <td><span class="badge" style="background:var(--${t.status})">${S_LABEL[t.status]}</span></td>
+        <td><span class="badge" style="background:var(--${t.priority})">${P_LABEL[t.priority]}</span></td>
+        <td>${t.due_date ? `${t.due_date}${isOverdue(t) ? ' <span class="badge overdue-badge">OVERDUE</span>' : ''}` : '—'}</td>
+        <td>${assigneesOf(t).map(a => esc(personName(a))).join(', ') || '—'}</td>
+        <td>${t.progress || 0}%</td>
+        <td>${(commentsByTask[t.id] || []).map(c => `
+          <div class="tcomment"><span class="tc-meta">${new Date(c.created_at).toLocaleDateString()} — <b>${esc(personName(c.user_id))}</b>:</span> ${esc(c.body)}</div>`).join('')
+          || '<span style="color:var(--muted)">—</span>'}</td>
+      </tr>`).join('')
+      : '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px">No tasks match.</td></tr>';
+  }
+
   // ----- KANBAN (two swipeable sections) -----
   const KANBAN_GROUPS = [['pending','in_progress','review','blocked'], ['completed','cancelled']];
   let kanbanCurrentPage = 0;
@@ -905,6 +1005,7 @@
     const to = document.getElementById('k-date-to').value;
     let pool = fa ? tasks.filter(t => assigneesOf(t).includes(fa)) : tasks;
     pool = pool.filter(t => passesDate(t, from, to));
+    if (kanbanOverdueOnly) pool = pool.filter(isOverdue);
     const pagesEl = document.getElementById('kanban-pages');
     pagesEl.innerHTML = KANBAN_GROUPS.map(statuses =>
       `<div class="kanban-page"><div class="kanban">${statuses.map(s => kanbanColHtml(s, pool)).join('')}</div></div>`).join('');
@@ -922,6 +1023,11 @@
   }
   function syncKanbanTabs() {
     document.querySelectorAll('.ktab').forEach(b => b.classList.toggle('active', +b.dataset.page === kanbanCurrentPage));
+  }
+  function toggleKanbanOverdue(btn) {
+    kanbanOverdueOnly = !kanbanOverdueOnly;
+    btn.classList.toggle('active', kanbanOverdueOnly);
+    renderKanban();
   }
   function kanbanDrag(e, id) { e.dataTransfer.setData('text/plain', id); }
   function kanbanOver(e) { e.preventDefault(); e.currentTarget.classList.add('drag-over'); }
@@ -1004,6 +1110,50 @@
     pieChart('chart-priority', PRIORITIES.map(p => [P_LABEL[p], open.filter(t => t.priority === p).length, PRIORITY_HEX[p]]));
     const depts = catalogs.departments.map(d => d.name);
     pieChart('chart-dept', depts.map((d, i) => [d, open.filter(t => t.department === d).length, PALETTE[i % PALETTE.length]]));
+
+    // on-time performance (completion moment ≈ the task's last update)
+    const completed = scoped.filter(t => t.status === 'completed');
+    const onTime = completed.filter(t => !t.due_date || (t.updated_at || '').slice(0,10) <= t.due_date).length;
+    pieChart('chart-ontime', [
+      ['Completed on time', onTime, '#10b981'],
+      ['Completed late', completed.length - onTime, '#f59e0b'],
+      ['Overdue (open)', overdue.length, '#dc2626'],
+    ]);
+
+    // tasks created per day — last 15 days (uses all tasks; creation history isn't due-date filtered)
+    const pad = n => String(n).padStart(2, '0');
+    const fmtLocal = x => `${x.getFullYear()}-${pad(x.getMonth()+1)}-${pad(x.getDate())}`;
+    const createdCount = {};
+    tasks.forEach(t => { const ds = fmtLocal(new Date(t.created_at)); createdCount[ds] = (createdCount[ds] || 0) + 1; });
+    const labels = [], values = [];
+    for (let i = 14; i >= 0; i--) {
+      const d = new Date(); d.setDate(d.getDate() - i);
+      const ds = fmtLocal(d);
+      labels.push(`${d.getDate()}/${d.getMonth()+1}`);
+      values.push(createdCount[ds] || 0);
+    }
+    lineChart('chart-created', labels, values);
+  }
+
+  function lineChart(elId, labels, values) {
+    const W = 640, H = 190, padL = 30, padR = 12, padT = 14, padB = 30;
+    const max = Math.max(1, ...values);
+    const stepX = (W - padL - padR) / (values.length - 1);
+    const X = i => padL + i * stepX;
+    const Y = v => padT + (H - padT - padB) * (1 - v / max);
+    const pts = values.map((v, i) => `${X(i)},${Y(v)}`).join(' ');
+    const dots = values.map((v, i) => `<circle cx="${X(i)}" cy="${Y(v)}" r="3.5" fill="#2563eb"/>${v ? `<text x="${X(i)}" y="${Y(v)-8}" text-anchor="middle" font-size="10" fill="var(--muted)">${v}</text>` : ''}`).join('');
+    const xLabels = labels.map((l, i) => i % 2 === 0 ? `<text x="${X(i)}" y="${H-8}" text-anchor="middle" font-size="9.5" fill="var(--muted)">${l}</text>` : '').join('');
+    const grid = [0, .5, 1].map(f => `<line x1="${padL}" y1="${Y(max*f)}" x2="${W-padR}" y2="${Y(max*f)}" stroke="#e5e7eb" stroke-width="1" stroke-dasharray="3 3"/>`).join('');
+    document.getElementById(elId).innerHTML = `
+      <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto">
+        ${grid}
+        <text x="${padL-6}" y="${Y(max)+4}" text-anchor="end" font-size="10" fill="var(--muted)">${max}</text>
+        <text x="${padL-6}" y="${Y(0)+4}" text-anchor="end" font-size="10" fill="var(--muted)">0</text>
+        <polyline points="${pts}" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+        ${dots}
+        ${xLabels}
+      </svg>`;
   }
   function pieChart(elId, rows) {
     const data = rows.filter(r => r[1] > 0);
@@ -1324,6 +1474,8 @@
     if (!body || !editingId) return;
     const { error } = await db.from('task_comments').insert({ task_id: editingId, user_id: currentUser.id, body });
     if (error) return alert(error.message);
+    (commentsByTask[editingId] = commentsByTask[editingId] || []).push({ task_id: editingId, user_id: currentUser.id, body, created_at: new Date().toISOString() });
+    renderTable();
     document.getElementById('c-body').value = '';
     loadComments(editingId);
   }
