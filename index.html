@@ -196,6 +196,19 @@
     .btn-save { padding: 11px 22px; border-radius: 10px; background: var(--primary); color: #fff; border: none; cursor: pointer; font-size: 14px; font-weight: 600; }
     .btn-delete { padding: 11px 14px; border-radius: 10px; background: #fff; color: #dc2626; border: 1.5px solid #fecaca; cursor: pointer; font-size: 14px; }
 
+    /* checklist (subtasks) */
+    #subtask-section { margin-top: 18px; border-top: 1px solid #eee; padding-top: 14px; }
+    #subtask-section h4 { font-size: 14px; margin-bottom: 10px; }
+    .subtask-item { display: flex; align-items: center; gap: 9px; padding: 8px 11px; background: #f8f9fb; border-radius: 8px; margin-bottom: 6px; font-size: 13.5px; }
+    .subtask-item input[type="checkbox"] { width: 17px; height: 17px; min-width: 17px; margin: 0; padding: 0; cursor: pointer; }
+    .subtask-item .st-title { flex: 1; }
+    .subtask-item.done .st-title { text-decoration: line-through; color: var(--muted); }
+    .st-add { display: flex; gap: 7px; }
+    .st-add input { margin-bottom: 0; flex: 1; }
+    .st-add button { width: auto; padding: 0 16px; }
+    [data-theme="dark"] .subtask-item { background: #0f172a; }
+    [data-theme="dark"] #subtask-section { border-color: #334155; }
+
     /* attachments */
     #attach-section { margin-top: 18px; border-top: 1px solid #eee; padding-top: 14px; }
     #attach-section h4 { font-size: 14px; margin-bottom: 10px; }
@@ -597,6 +610,15 @@
       </div>
     </div>
 
+    <div id="subtask-section" style="display:none">
+      <h4>☑️ Checklist</h4>
+      <div id="subtask-list"></div>
+      <div class="st-add" id="st-add-row">
+        <input id="st-new" type="text" placeholder="New checklist item…" />
+        <button class="btn" onclick="addSubtask()">Add</button>
+      </div>
+    </div>
+
     <div id="attach-section" style="display:none">
       <h4>📎 Attachments</h4>
       <div id="attach-list"></div>
@@ -633,7 +655,7 @@
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ6a2xqdHJvemxqcWJpemdvdGxlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDIzMjMsImV4cCI6MjA5NjY3ODMyM30.AYaXB_81Zpg15PCrpZsO0SCPeK955Rp-f5QMmnuwI4c';
   const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   const SYNTH_DOMAIN = 'todolist-ep.local';
-  const APP_VERSION = 'v7.3';
+  const APP_VERSION = 'v7.4';
   const APP_UPDATED = 'June 24, 2026';
 
   const STATUSES   = ['pending','in_progress','review','blocked','completed','cancelled'];
@@ -644,7 +666,7 @@
   let tasks = [], profiles = [], catalogs = { departments: [], clients: [], projects: [] };
   let me = null, currentUser = null, editingId = null, calDate = new Date(), currentView = 'dashboard';
   let notifications = [], notifChannel = null;
-  let kanbanOverdueOnly = false, commentsByTask = {};
+  let kanbanOverdueOnly = false, commentsByTask = {}, subtasksByTask = {};
 
   // multi-select filter state (empty set = "all")
   const filterState = { status:new Set(), priority:new Set(), dept:new Set(), project:new Set(), assignee:new Set() };
@@ -723,19 +745,22 @@
 
   // ============ DATA ============
   async function refreshData() {
-    const [t, p, d, c, pr, cm] = await Promise.all([
+    const [t, p, d, c, pr, cm, st] = await Promise.all([
       db.from('tasks').select('*').order('created_at', { ascending: false }),
       db.from('profiles').select('*').order('username'),
       db.from('departments').select('*').order('name'),
       db.from('clients').select('*').order('name'),
       db.from('projects').select('*').order('name'),
       db.from('task_comments').select('*').order('created_at'),
+      db.from('subtasks').select('*').order('created_at'),
     ]);
     if (t.error) return alert('Error loading tasks: ' + t.error.message);
     tasks = t.data; profiles = p.data || [];
     catalogs.departments = d.data || []; catalogs.clients = c.data || []; catalogs.projects = pr.data || [];
     commentsByTask = {};
     (cm.data || []).forEach(x => { if (x.kind !== 'activity') (commentsByTask[x.task_id] = commentsByTask[x.task_id] || []).push(x); });
+    subtasksByTask = {};
+    (st.data || []).forEach(x => (subtasksByTask[x.task_id] = subtasksByTask[x.task_id] || []).push(x));
     renderAll();
   }
   function renderAll() { renderDashboard(); renderList(); renderKanban(); renderCalendar(); renderTable(); refreshFilters(); if (me?.role === 'admin') renderAdmin(); }
@@ -922,6 +947,7 @@
           ${t.client ? `<span class="badge outline">🤝 ${esc(t.client)}</span>` : ''}
           ${t.project ? `<span class="badge outline">📁 ${esc(t.project)}</span>` : ''}
           ${(t.tags||[]).map(tag => `<span class="badge outline">#${esc(tag)}</span>`).join('')}
+          ${subBadge(t)}
         </div>
         ${t.due_date ? `<div class="card-due ${isOverdue(t)?'overdue':''}">📅 ${t.due_date}${isOverdue(t)?' — OVERDUE':''}</div>` : ''}
         ${progressBarHtml(t)}
@@ -994,6 +1020,7 @@
               <span class="badge" style="background:var(--${t.priority})">${P_LABEL[t.priority]}</span>
               ${assigneesOf(t).map(a => `<span class="badge person">👤 ${esc(personName(a))}</span>`).join('')}
               ${t.due_date ? `<span class="badge ${isOverdue(t) ? 'overdue-badge' : 'outline'}">${isOverdue(t) ? '⚠️ ' : '📅 '}${t.due_date}${isOverdue(t) ? ' OVERDUE' : ''}</span>` : ''}
+              ${subBadge(t)}
             </div>
             ${progressBarHtml(t)}
           </div>`).join('')}
@@ -1298,7 +1325,8 @@
 
     document.getElementById('comments-section').style.display = t ? 'block' : 'none';
     document.getElementById('attach-section').style.display = t ? 'block' : 'none';
-    if (t) { loadComments(t.id); loadAttachments(t.id); }
+    document.getElementById('subtask-section').style.display = t ? 'block' : 'none';
+    if (t) { loadComments(t.id); loadAttachments(t.id); renderChecklist(); }
     document.getElementById('modal').classList.add('open');
     history.pushState({ level: 'modal' }, '');
   }
@@ -1457,6 +1485,49 @@
     loadAttachments(editingId);
   }
 
+  // ----- CHECKLIST (subtasks) -----
+  const subBadge = t => {
+    const subs = subtasksByTask[t.id];
+    if (!subs || !subs.length) return '';
+    return `<span class="badge outline">☑ ${subs.filter(s => s.done).length}/${subs.length}</span>`;
+  };
+  function renderChecklist() {
+    const box = document.getElementById('subtask-list');
+    const subs = subtasksByTask[editingId] || [];
+    const manage = canEditFull(tasks.find(x => x.id === editingId));
+    box.innerHTML = subs.length
+      ? subs.map(s => `
+        <div class="subtask-item ${s.done ? 'done' : ''}">
+          <input type="checkbox" ${s.done ? 'checked' : ''} onchange="toggleSubtask('${s.id}', this.checked)" />
+          <span class="st-title">${esc(s.title)}</span>
+          ${manage ? `<button class="mini-btn danger" onclick="deleteSubtask('${s.id}')">✕</button>` : ''}
+        </div>`).join('')
+      : '<p style="color:var(--muted);font-size:13px">No checklist items yet.</p>';
+    document.getElementById('st-add-row').style.display = manage ? 'flex' : 'none';
+  }
+  async function addSubtask() {
+    const input = document.getElementById('st-new');
+    const title = input.value.trim();
+    if (!title || !editingId) return;
+    const { data, error } = await db.from('subtasks').insert({ task_id: editingId, user_id: currentUser.id, title }).select('*').single();
+    if (error) return alert(error.message);
+    (subtasksByTask[editingId] = subtasksByTask[editingId] || []).push(data);
+    input.value = '';
+    renderChecklist(); renderList(); renderKanban();
+  }
+  async function toggleSubtask(id, done) {
+    const { error } = await db.from('subtasks').update({ done }).eq('id', id);
+    if (error) return alert(error.message);
+    Object.values(subtasksByTask).flat().forEach(s => { if (s.id === id) s.done = done; });
+    renderChecklist(); renderList(); renderKanban();
+  }
+  async function deleteSubtask(id) {
+    const { error } = await db.from('subtasks').delete().eq('id', id);
+    if (error) return alert(error.message);
+    subtasksByTask[editingId] = (subtasksByTask[editingId] || []).filter(s => s.id !== id);
+    renderChecklist(); renderList(); renderKanban();
+  }
+
   // ----- COMMENTS -----
   async function loadComments(taskId) {
     const box = document.getElementById('comments-list');
@@ -1503,6 +1574,7 @@
   });
   document.getElementById('password').addEventListener('keydown', e => { if (e.key === 'Enter') handleAuth(); });
   document.getElementById('c-body').addEventListener('keydown', e => { if (e.key === 'Enter') addComment(); });
+  document.getElementById('st-new').addEventListener('keydown', e => { if (e.key === 'Enter') addSubtask(); });
 </script>
 </body>
 </html>
