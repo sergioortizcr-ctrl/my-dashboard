@@ -655,7 +655,7 @@
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ6a2xqdHJvemxqcWJpemdvdGxlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDIzMjMsImV4cCI6MjA5NjY3ODMyM30.AYaXB_81Zpg15PCrpZsO0SCPeK955Rp-f5QMmnuwI4c';
   const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   const SYNTH_DOMAIN = 'todolist-ep.local';
-  const APP_VERSION = 'v7.4';
+  const APP_VERSION = 'v7.5';
   const APP_UPDATED = 'June 24, 2026';
 
   const STATUSES   = ['pending','in_progress','review','blocked','completed','cancelled'];
@@ -1494,16 +1494,16 @@
   function renderChecklist() {
     const box = document.getElementById('subtask-list');
     const subs = subtasksByTask[editingId] || [];
-    const manage = canEditFull(tasks.find(x => x.id === editingId));
+    const canDelete = canEditFull(tasks.find(x => x.id === editingId)); // add: anyone on the task; delete: admin/creator
     box.innerHTML = subs.length
       ? subs.map(s => `
         <div class="subtask-item ${s.done ? 'done' : ''}">
           <input type="checkbox" ${s.done ? 'checked' : ''} onchange="toggleSubtask('${s.id}', this.checked)" />
           <span class="st-title">${esc(s.title)}</span>
-          ${manage ? `<button class="mini-btn danger" onclick="deleteSubtask('${s.id}')">✕</button>` : ''}
+          ${canDelete ? `<button class="mini-btn danger" onclick="deleteSubtask('${s.id}')">✕</button>` : ''}
         </div>`).join('')
       : '<p style="color:var(--muted);font-size:13px">No checklist items yet.</p>';
-    document.getElementById('st-add-row').style.display = manage ? 'flex' : 'none';
+    document.getElementById('st-add-row').style.display = 'flex';
   }
   async function addSubtask() {
     const input = document.getElementById('st-new');

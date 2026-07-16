@@ -1,8 +1,8 @@
 -- ============================================================
 -- v9: checklist (subtasks) inside tasks — complementary data,
 --   independent from the progress %.
---   Manage (add/delete): admin or the task creator.
---   Check/uncheck: any stakeholder (creator or any responsible).
+--   Add + check/uncheck: any stakeholder (creator or any responsible).
+--   Delete: admin or the task creator only.
 -- ============================================================
 
 create table if not exists subtasks (
@@ -23,7 +23,8 @@ create policy "subtasks_select" on subtasks for select to authenticated
 
 create policy "subtasks_insert" on subtasks for insert to authenticated
   with check (user_id = auth.uid() and exists (select 1 from tasks t where t.id = task_id and (
-    is_admin() or t.user_id = auth.uid())));
+    is_admin() or t.user_id = auth.uid()
+    or t.assignee_id = auth.uid() or t.assignee2_id = auth.uid() or t.assignee3_id = auth.uid())));
 
 create policy "subtasks_update" on subtasks for update to authenticated
   using (exists (select 1 from tasks t where t.id = task_id and (
