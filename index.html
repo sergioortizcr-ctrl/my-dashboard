@@ -89,7 +89,24 @@
     .badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
     .badge { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 12px; color: #fff; }
     .badge.outline { background: #f3f4f6 !important; color: var(--muted); border: 1px solid #e5e7eb; }
-    .badge.overdue-badge { background: #dc2626 !important; color: #fff; border: none; }
+    .badge.overdue-badge { background: #dc2626 !important; color: #fff; border: none; animation: softblink 1.6s ease-in-out infinite; }
+
+    /* ---------- DASHBOARD ANIMATIONS ---------- */
+    @keyframes softblink { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+    .blink-red { animation: softblink 1.6s ease-in-out infinite; }
+    @keyframes glowpulse {
+      0%, 100% { box-shadow: 0 1px 5px rgba(220,38,38,.15); }
+      50%      { box-shadow: 0 2px 14px rgba(220,38,38,.5); }
+    }
+    .card.overdue-card, .kanban-card.overdue-card { animation: glowpulse 2.2s ease-in-out infinite; }
+    .pie-svg circle.seg { cursor: pointer; transition: opacity .15s; }
+    .pie-svg circle.seg:hover { opacity: .75; }
+    .legend-row { padding: 2px 5px; border-radius: 6px; }
+    .legend-row.hot { background: rgba(37,99,235,.12); }
+    [data-theme="dark"] .legend-row.hot { background: rgba(147,197,253,.15); }
+    @media (prefers-reduced-motion: reduce) {
+      .blink-red, .badge.overdue-badge, .overdue-card { animation: none !important; }
+    }
     .badge.person { background: #eff6ff !important; color: var(--primary); border: 1px solid #bfdbfe; }
     .card-due { font-size: 12px; color: var(--muted); margin-top: 6px; }
     .card-due.overdue { color: #dc2626; font-weight: 600; }
@@ -655,7 +672,7 @@
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ6a2xqdHJvemxqcWJpemdvdGxlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDIzMjMsImV4cCI6MjA5NjY3ODMyM30.AYaXB_81Zpg15PCrpZsO0SCPeK955Rp-f5QMmnuwI4c';
   const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   const SYNTH_DOMAIN = 'todolist-ep.local';
-  const APP_VERSION = 'v7.5';
+  const APP_VERSION = 'v7.6';
   const APP_UPDATED = 'June 24, 2026';
 
   const STATUSES   = ['pending','in_progress','review','blocked','completed','cancelled'];
@@ -885,6 +902,7 @@
     (btn || document.querySelector(`.nav-tab[data-view="${name}"]`)).classList.add('active');
     const prev = currentView;
     currentView = name;
+    if (name === 'dashboard' && prev !== 'dashboard') renderDashboard(); // replay entrance animations
     if (fromPop) return;
     if (name !== 'dashboard') {
       if (history.state?.level === 'view') history.replaceState({ level: 'view' }, '');
@@ -933,7 +951,7 @@
     if (!filtered.length) { list.innerHTML = '<p class="empty">No tasks match.<br>Tap + to add one!</p>'; return; }
 
     list.innerHTML = filtered.map(t => `
-      <div class="card" style="border-left-color:var(--${t.priority})" onclick="openModal('${t.id}')">
+      <div class="card ${isOverdue(t) ? 'overdue-card' : ''}" style="border-left-color:var(--${t.priority})" onclick="openModal('${t.id}')">
         <div class="card-top">
           <span class="card-title ${t.status==='completed'?'done':''}">${esc(t.title)}</span>
           <select class="status-select" style="background:var(--${t.status})" onclick="event.stopPropagation()" onchange="inlineStatusChange('${t.id}', this.value)">
@@ -1014,7 +1032,7 @@
       <div class="kanban-col" data-status="${s}" ondragover="kanbanOver(event)" ondragleave="kanbanLeave(event)" ondrop="kanbanDrop(event)">
         <h4><span><span class="dot" style="background:var(--${s})"></span>${S_LABEL[s]}</span><span class="count">${col.length}</span></h4>
         ${col.map(t => `
-          <div class="kanban-card" draggable="true" ondragstart="kanbanDrag(event,'${t.id}')" onclick="openModal('${t.id}')">
+          <div class="kanban-card ${isOverdue(t) ? 'overdue-card' : ''}" draggable="true" ondragstart="kanbanDrag(event,'${t.id}')" onclick="openModal('${t.id}')">
             <div>${esc(t.title)}</div>
             <div class="kc-meta">
               <span class="badge" style="background:var(--${t.priority})">${P_LABEL[t.priority]}</span>
@@ -1125,18 +1143,21 @@
     const open = scoped.filter(t => !['completed','cancelled'].includes(t.status));
     const overdue = scoped.filter(isOverdue);
     const doneWeek = scoped.filter(t => t.status === 'completed' && t.updated_at >= new Date(Date.now() - 7*864e5).toISOString());
+    const anim = currentView === 'dashboard' && !matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const statVals = [open.length, overdue.length, doneWeek.length, scoped.length];
     document.getElementById('stats-grid').innerHTML = `
-      <div class="stat-card"><div class="num">${open.length}</div><div class="lbl">Open tasks</div></div>
-      <div class="stat-card"><div class="num" style="color:#dc2626">${overdue.length}</div><div class="lbl">Overdue</div></div>
-      <div class="stat-card"><div class="num" style="color:#10b981">${doneWeek.length}</div><div class="lbl">Completed (7 days)</div></div>
-      <div class="stat-card"><div class="num">${scoped.length}</div><div class="lbl">Total tasks</div></div>`;
+      <div class="stat-card"><div class="num">${anim ? 0 : open.length}</div><div class="lbl">Open tasks</div></div>
+      <div class="stat-card"><div class="num ${overdue.length ? 'blink-red' : ''}" style="color:#dc2626">${anim ? 0 : overdue.length}</div><div class="lbl">Overdue</div></div>
+      <div class="stat-card"><div class="num" style="color:#10b981">${anim ? 0 : doneWeek.length}</div><div class="lbl">Completed (7 days)</div></div>
+      <div class="stat-card"><div class="num">${anim ? 0 : scoped.length}</div><div class="lbl">Total tasks</div></div>`;
+    if (anim) document.querySelectorAll('#stats-grid .num').forEach((el, i) => countUp(el, statVals[i]));
 
     pieChart('chart-user', profiles.map((p, i) => [p.full_name || p.username, open.filter(t => assigneesOf(t).includes(p.id)).length, PALETTE[i % PALETTE.length]])
-      .concat(open.some(t => !assigneesOf(t).length) ? [['(unassigned)', open.filter(t => !assigneesOf(t).length).length, '#9ca3af']] : []));
-    pieChart('chart-status', STATUSES.map(s => [S_LABEL[s], scoped.filter(t => t.status === s).length, STATUS_HEX[s]]));
-    pieChart('chart-priority', PRIORITIES.map(p => [P_LABEL[p], open.filter(t => t.priority === p).length, PRIORITY_HEX[p]]));
+      .concat(open.some(t => !assigneesOf(t).length) ? [['(unassigned)', open.filter(t => !assigneesOf(t).length).length, '#9ca3af']] : []), anim);
+    pieChart('chart-status', STATUSES.map(s => [S_LABEL[s], scoped.filter(t => t.status === s).length, STATUS_HEX[s]]), anim);
+    pieChart('chart-priority', PRIORITIES.map(p => [P_LABEL[p], open.filter(t => t.priority === p).length, PRIORITY_HEX[p]]), anim);
     const depts = catalogs.departments.map(d => d.name);
-    pieChart('chart-dept', depts.map((d, i) => [d, open.filter(t => t.department === d).length, PALETTE[i % PALETTE.length]]));
+    pieChart('chart-dept', depts.map((d, i) => [d, open.filter(t => t.department === d).length, PALETTE[i % PALETTE.length]]), anim);
 
     // on-time performance (completion moment ≈ the task's last update)
     const completed = scoped.filter(t => t.status === 'completed');
@@ -1145,7 +1166,7 @@
       ['Completed on time', onTime, '#10b981'],
       ['Completed late', completed.length - onTime, '#f59e0b'],
       ['Overdue (open)', overdue.length, '#dc2626'],
-    ]);
+    ], anim);
 
     // tasks created per day — last 15 days (uses all tasks; creation history isn't due-date filtered)
     const pad = n => String(n).padStart(2, '0');
@@ -1159,10 +1180,20 @@
       labels.push(`${d.getDate()}/${d.getMonth()+1}`);
       values.push(createdCount[ds] || 0);
     }
-    lineChart('chart-created', labels, values);
+    lineChart('chart-created', labels, values, anim);
   }
 
-  function lineChart(elId, labels, values) {
+  function countUp(el, target) {
+    const t0 = performance.now(), dur = 650;
+    const ease = x => 1 - Math.pow(1 - x, 3);
+    (function step(now) {
+      const p = Math.min(1, (now - t0) / dur);
+      el.textContent = Math.round(target * ease(p));
+      if (p < 1) requestAnimationFrame(step);
+    })(performance.now());
+  }
+
+  function lineChart(elId, labels, values, animate) {
     const W = 640, H = 190, padL = 30, padR = 12, padT = 14, padB = 30;
     const max = Math.max(1, ...values);
     const stepX = (W - padL - padR) / (values.length - 1);
@@ -1172,31 +1203,73 @@
     const dots = values.map((v, i) => `<circle cx="${X(i)}" cy="${Y(v)}" r="3.5" fill="#2563eb"/>${v ? `<text x="${X(i)}" y="${Y(v)-8}" text-anchor="middle" font-size="10" fill="var(--muted)">${v}</text>` : ''}`).join('');
     const xLabels = labels.map((l, i) => i % 2 === 0 ? `<text x="${X(i)}" y="${H-8}" text-anchor="middle" font-size="9.5" fill="var(--muted)">${l}</text>` : '').join('');
     const grid = [0, .5, 1].map(f => `<line x1="${padL}" y1="${Y(max*f)}" x2="${W-padR}" y2="${Y(max*f)}" stroke="#e5e7eb" stroke-width="1" stroke-dasharray="3 3"/>`).join('');
-    document.getElementById(elId).innerHTML = `
+    const box = document.getElementById(elId);
+    box.innerHTML = `
       <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto">
         ${grid}
         <text x="${padL-6}" y="${Y(max)+4}" text-anchor="end" font-size="10" fill="var(--muted)">${max}</text>
         <text x="${padL-6}" y="${Y(0)+4}" text-anchor="end" font-size="10" fill="var(--muted)">0</text>
         <polyline points="${pts}" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
-        ${dots}
+        <g class="lc-dots" style="opacity:${animate ? 0 : 1}">${dots}</g>
         ${xLabels}
       </svg>`;
+    if (animate) {
+      const pl = box.querySelector('polyline');
+      const L = pl.getTotalLength();
+      pl.style.strokeDasharray = L;
+      pl.style.strokeDashoffset = L;
+      pl.style.transition = 'stroke-dashoffset .9s ease-out';
+      const g = box.querySelector('.lc-dots');
+      g.style.transition = 'opacity .5s ease-out .55s';
+      requestAnimationFrame(() => requestAnimationFrame(() => { pl.style.strokeDashoffset = '0'; g.style.opacity = '1'; }));
+    }
   }
-  function pieChart(elId, rows) {
+  function pieChart(elId, rows, animate) {
     const data = rows.filter(r => r[1] > 0);
     const total = data.reduce((s, r) => s + r[1], 0);
     const box = document.getElementById(elId);
     if (!total) { box.innerHTML = '<p style="color:var(--muted);font-size:13px">No data yet.</p>'; return; }
     const R = 60, C = 2 * Math.PI * R;
     let off = 0;
-    const segs = data.map(([label, n, color]) => {
-      const len = n / total * C;
-      const seg = `<circle cx="80" cy="80" r="${R}" fill="none" stroke="${color}" stroke-width="34" stroke-dasharray="${len} ${C - len}" stroke-dashoffset="${-off}" transform="rotate(-90 80 80)"/>`;
-      off += len; return seg;
-    }).join('');
-    const legend = data.map(([label, n, color]) =>
-      `<div class="legend-row"><span class="legend-dot" style="background:${color}"></span><span>${esc(label)}</span><b style="margin-left:4px">${n}</b><span class="legend-pct">${Math.round(n/total*100)}%</span></div>`).join('');
-    box.innerHTML = `<div class="pie-wrap"><svg viewBox="0 0 160 160" class="pie-svg">${segs}<text x="80" y="80" text-anchor="middle" dominant-baseline="central" class="pie-total">${total}</text></svg><div class="legend">${legend}</div></div>`;
+    const meta = data.map(([label, n, color], i) => {
+      const m = { label, n, color, i, len: n / total * C, off, pct: Math.round(n / total * 100) };
+      off += m.len; return m;
+    });
+    const segs = meta.map(m =>
+      `<circle class="seg" data-idx="${m.i}" data-label="${esc(m.label)}" data-n="${m.n}" data-pct="${m.pct}"
+        cx="80" cy="80" r="${R}" fill="none" stroke="${m.color}" stroke-width="34"
+        stroke-dasharray="${animate ? 0 : m.len} ${C}" stroke-dashoffset="${-m.off}" transform="rotate(-90 80 80)"
+        onmouseenter="pieHover(this)" onmouseleave="pieLeave(this)" onclick="pieHover(this)"/>`).join('');
+    const legend = meta.map(m =>
+      `<div class="legend-row" data-idx="${m.i}"><span class="legend-dot" style="background:${m.color}"></span><span>${esc(m.label)}</span><b style="margin-left:4px">${m.n}</b><span class="legend-pct">${m.pct}%</span></div>`).join('');
+    box.innerHTML = `<div class="pie-wrap"><svg viewBox="0 0 160 160" class="pie-svg">${segs}
+      <text x="80" y="77" text-anchor="middle" dominant-baseline="central" class="pie-total">${total}</text>
+      <text x="80" y="97" text-anchor="middle" class="pie-sub" font-size="9.5" fill="var(--muted)"></text>
+    </svg><div class="legend">${legend}</div></div>`;
+    if (animate) {
+      const circles = box.querySelectorAll('circle.seg');
+      const t0 = performance.now(), dur = 750;
+      const ease = x => 1 - Math.pow(1 - x, 3);
+      (function step(now) {
+        const e = ease(Math.min(1, (now - t0) / dur));
+        circles.forEach((c, i) => c.setAttribute('stroke-dasharray', `${meta[i].len * e} ${C}`));
+        if (e < 1) requestAnimationFrame(step);
+      })(performance.now());
+    }
+  }
+  function pieHover(el) {
+    const wrap = el.closest('.pie-wrap');
+    wrap.querySelector('.pie-total').textContent = el.dataset.n;
+    wrap.querySelector('.pie-sub').textContent = `${el.dataset.label} · ${el.dataset.pct}%`;
+    wrap.querySelectorAll('.legend-row').forEach(r => r.classList.toggle('hot', r.dataset.idx === el.dataset.idx));
+  }
+  function pieLeave(el) {
+    const wrap = el.closest('.pie-wrap');
+    let tot = 0;
+    wrap.querySelectorAll('circle.seg').forEach(c => tot += +c.dataset.n);
+    wrap.querySelector('.pie-total').textContent = tot;
+    wrap.querySelector('.pie-sub').textContent = '';
+    wrap.querySelectorAll('.legend-row').forEach(r => r.classList.remove('hot'));
   }
 
   // ============ ADMIN ============
